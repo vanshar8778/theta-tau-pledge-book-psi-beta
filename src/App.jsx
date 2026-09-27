@@ -39,7 +39,7 @@ const ACTIVITY_TYPES = [
   { id: "event",            label: "Event Attendance",       icon: "📅", detail: "event"  },
 ];
 
-const POINTS        = { interview_active: 3, sig_active: 2, pnm_interview: 2, event: 1 };
+const POINTS        = { interview_active: 2, sig_active: 1.5, pnm_interview: 1, event: 1 };
 const STATUS_COLORS = { pending: "#C9A84C", approved: "#2E8B57", rejected: "#B83232" };
 const STATUS_BG     = { pending: "#FDF8EC", approved: "#EDF7F1", rejected: "#FBEAEA" };
 
