@@ -5,10 +5,6 @@ import { db } from "./firebase";
 const PM_PASSWORD = import.meta.env.VITE_PM_PASSWORD || "thetataupledge";
 
 const PNM_NAMES = [
-  "Anthea",
-  "Austin",
-  "Dylan",
-  "Kenneth",
   "Adryel Rosales Juarez",
   "Alvin An",
   "Alyssa Riddell",
