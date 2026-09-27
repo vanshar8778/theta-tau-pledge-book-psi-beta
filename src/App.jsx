@@ -389,7 +389,7 @@ export default function PledgeBook() {
                         <div style={{ fontSize:13, color:"#aaa" }}>Tap to upload a photo</div>
                       </>
                     )}
-                    <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{ display:"none" }} />
+                    <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display:"none" }} />
                   </div>
                   {photoPreview && (
                     <button onClick={() => { setPhotoPreview(null); setForm(f => ({ ...f, photo:null })); }}
