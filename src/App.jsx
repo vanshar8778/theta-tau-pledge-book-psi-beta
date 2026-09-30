@@ -13,7 +13,6 @@ const PNM_NAMES = [
   "Bailey Alexander",
   "Ben Corson",
   "Bennett Pearson",
-  "Brian Tseng",
   "Eduardo Botello",
   "Johannes Perret-Gentil",
   "Julia Lee",
@@ -27,6 +26,7 @@ const PNM_NAMES = [
   "Rohan Cortes",
   "Ryan Gonzalez",
   "Sal Pellegrino",
+  "Stan Ellison",
   "Travis Schultz",
   "Violet Pyles",
 ];
@@ -38,7 +38,7 @@ const ACTIVITY_TYPES = [
   { id: "event",            label: "Event Attendance",       icon: "📅", detail: "event"  },
 ];
 
-const POINTS        = { interview_active: 2, sig_active: 1.5, pnm_interview: 1, event: 1 };
+const POINTS        = { interview_active: 3, sig_active: 2, pnm_interview: 2, event: 1 };
 const STATUS_COLORS = { pending: "#C9A84C", approved: "#2E8B57", rejected: "#B83232" };
 const STATUS_BG     = { pending: "#FDF8EC", approved: "#EDF7F1", rejected: "#FBEAEA" };
 
@@ -66,9 +66,10 @@ export default function PledgeBook() {
   const [submissions, setSubmissions] = useState([]);
   const [loading,     setLoading]     = useState(true);
 
-  // Secret tap state — tap ΘΤ logo 5 times to reveal PM
-  const [tapCount,   setTapCount]   = useState(0);
-  const tapTimer                    = useRef(null);
+  // Secret PM unlock: Johannes selected → 5 corner taps → logo tap
+  const [cornerCount, setCornerCount] = useState(0);
+  const [cornerDone,  setCornerDone]  = useState(false);
+  const cornerTimer                   = useRef(null);
 
   // PNM state machine
   const [pnmScreen,    setPnmScreen]    = useState("name_entry");
@@ -102,17 +103,34 @@ export default function PledgeBook() {
     return () => unsub();
   }, []);
 
-  // Secret logo tap handler
-  function handleLogoTap() {
-    if (tapTimer.current) clearTimeout(tapTimer.current);
-    const next = tapCount + 1;
+  // Step 1: corner tap (only when Johannes is selected in dropdown)
+  function handleCornerTap() {
+    if (nameInput !== "Johannes Perret-Gentil") return;
+    if (cornerDone) return; // already waiting for logo tap
+    if (cornerTimer.current) clearTimeout(cornerTimer.current);
+    const next = cornerCount + 1;
     if (next >= 5) {
-      setView("pm");
-      setTapCount(0);
+      setCornerCount(0);
+      setCornerDone(true);
+      // Give 8 seconds to tap the logo, then reset
+      cornerTimer.current = setTimeout(() => {
+        setCornerDone(false);
+      }, 8000);
     } else {
-      setTapCount(next);
-      tapTimer.current = setTimeout(() => setTapCount(0), 2000);
+      setCornerCount(next);
+      cornerTimer.current = setTimeout(() => setCornerCount(0), 2000);
     }
+  }
+
+  // Step 2: logo tap — only triggers PM if corner sequence is complete
+  function handleLogoTap() {
+    if (cornerDone) {
+      if (cornerTimer.current) clearTimeout(cornerTimer.current);
+      setCornerDone(false);
+      setCornerCount(0);
+      setView("pm");
+    }
+    // Otherwise logo tap does nothing
   }
 
   const mySubs = (n) => submissions.filter(s => s.pnmName === n);
@@ -195,6 +213,20 @@ export default function PledgeBook() {
     return Object.entries(tally).sort((a, b) => b[1] - a[1]);
   }
 
+  // Per-PNM activity breakdown (approved only)
+  function pnmBreakdown() {
+    const breakdown = {};
+    PNM_NAMES.forEach(name => {
+      breakdown[name] = { sig_active: 0, interview_active: 0, pnm_interview: 0, event: 0 };
+    });
+    submissions.filter(s => s.status === "approved").forEach(s => {
+      if (breakdown[s.pnmName] !== undefined) {
+        breakdown[s.pnmName][s.type] = (breakdown[s.pnmName][s.type] || 0) + 1;
+      }
+    });
+    return breakdown;
+  }
+
   function copyLink() {
     navigator.clipboard?.writeText(window.location.href)
       .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
@@ -240,21 +272,31 @@ export default function PledgeBook() {
   return (
     <div style={{ minHeight:"100vh", background:"#F2F0EB", fontFamily:"'Inter', system-ui, sans-serif" }}>
 
-      {/* HEADER — no PM tab visible. Tap ΘΤ logo 5x for PM access */}
-      <div style={{ background:"#1A2035", padding:"0 20px", display:"flex", alignItems:"center", justifyContent:"space-between", height:54 }}>
+      {/* HEADER */}
+      <div style={{ position:"relative", background:"#1A2035", padding:"0 20px", display:"flex", alignItems:"center", justifyContent:"space-between", height:54 }}>
+        {/* ΘΤ logo — step 2 of PM unlock (only active after corner sequence) */}
         <div
           onClick={handleLogoTap}
           style={{ display:"flex", alignItems:"baseline", gap:10, cursor:"default", userSelect:"none" }}
         >
-          <span style={{ color: tapCount > 0 ? "#fff" : "#C9A84C", fontWeight:800, fontSize:20, transition:"color 0.1s" }}>Θ Τ</span>
+          <span style={{ color: cornerDone ? "#ffffff" : "#C9A84C", fontWeight:800, fontSize:20, transition:"color 0.2s" }}>Θ Τ</span>
           <span style={{ color:"rgba(255,255,255,0.45)", fontSize:12, letterSpacing:"0.6px" }}>Pledge Book</span>
         </div>
+
         {/* Back to PNM button — only shows when in PM view */}
         {view === "pm" && (
           <button onClick={() => { setView("pnm"); setPmAuthed(false); setPwInput(""); }}
             style={btn({ fontSize:11, padding:"5px 14px", background:"rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.6)" })}>
             ← PNM View
           </button>
+        )}
+
+        {/* Invisible top-right corner tap zone — step 1 of PM unlock */}
+        {view === "pnm" && (
+          <div
+            onClick={handleCornerTap}
+            style={{ position:"absolute", top:0, right:0, width:64, height:54, cursor:"default", WebkitTapHighlightColor:"transparent" }}
+          />
         )}
       </div>
 
@@ -332,7 +374,7 @@ export default function PledgeBook() {
               <button onClick={() => setPnmScreen("form")} style={btn({ width:"100%", padding:13, fontSize:14, background:"#1A2035", color:"#C9A84C" })}>
                 + LOG ACTIVITY
               </button>
-              <button onClick={() => { setPnmName(""); setNameInput(""); setPnmScreen("name_entry"); }}
+              <button onClick={() => { setPnmName(""); setNameInput(""); setPnmScreen("name_entry"); setCornerCount(0); setCornerDone(false); }}
                 style={btn({ width:"100%", padding:9, fontSize:12, background:"none", color:"#bbb", fontWeight:400, marginTop:6 })}>
                 Not {pnmName.split(" ")[0]}? Switch name
               </button>
@@ -389,6 +431,7 @@ export default function PledgeBook() {
                         <div style={{ fontSize:13, color:"#aaa" }}>Tap to upload a photo</div>
                       </>
                     )}
+                    {/* capture="environment" removed so iOS shows camera roll option */}
                     <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display:"none" }} />
                   </div>
                   {photoPreview && (
@@ -457,6 +500,50 @@ export default function PledgeBook() {
                     <div style={{ fontSize:12, color:filter===key ? "rgba(255,255,255,0.45)" : "#aaa", fontWeight:600, marginTop:2, textTransform:"capitalize" }}>{key}</div>
                   </div>
                 ))}
+              </div>
+
+              {/* PNM Activity Breakdown */}
+              <div style={{ background:"white", borderRadius:8, padding:"14px 18px", marginBottom:14, overflowX:"auto" }}>
+                <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"0.5px", marginBottom:12 }}>PNM ACTIVITY BREAKDOWN (APPROVED)</div>
+                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                  <thead>
+                    <tr style={{ borderBottom:"2px solid #E0DDD5" }}>
+                      <th style={{ textAlign:"left", padding:"6px 8px 8px 0", color:"#1A2035", fontWeight:800, fontSize:12 }}>PNM</th>
+                      <th style={{ textAlign:"center", padding:"6px 6px 8px", color:"#555", fontWeight:700, fontSize:11 }}>✍️ Sigs</th>
+                      <th style={{ textAlign:"center", padding:"6px 6px 8px", color:"#555", fontWeight:700, fontSize:11 }}>🤝 Interviews</th>
+                      <th style={{ textAlign:"center", padding:"6px 6px 8px", color:"#555", fontWeight:700, fontSize:11 }}>💬 PNM 1-on-1s</th>
+                      <th style={{ textAlign:"center", padding:"6px 0 8px 6px", color:"#555", fontWeight:700, fontSize:11 }}>📅 Events</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const bd = pnmBreakdown();
+                      return PNM_NAMES.map((name, i) => {
+                        const r = bd[name];
+                        const total = r.sig_active + r.interview_active + r.pnm_interview + r.event;
+                        return (
+                          <tr key={name} style={{ borderBottom:"1px solid #F5F4F0", background: i % 2 === 0 ? "transparent" : "#FAFAF8" }}>
+                            <td style={{ padding:"7px 8px 7px 0", color:"#1A2035", fontWeight: total > 0 ? 600 : 400 }}>
+                              {name.split(" ")[0]} {name.split(" ").slice(-1)[0]}
+                            </td>
+                            <td style={{ textAlign:"center", padding:"7px 6px", color: r.sig_active > 0 ? "#2E8B57" : "#ccc", fontWeight:700 }}>
+                              {r.sig_active || "—"}
+                            </td>
+                            <td style={{ textAlign:"center", padding:"7px 6px", color: r.interview_active > 0 ? "#2E8B57" : "#ccc", fontWeight:700 }}>
+                              {r.interview_active || "—"}
+                            </td>
+                            <td style={{ textAlign:"center", padding:"7px 6px", color: r.pnm_interview > 0 ? "#2E8B57" : "#ccc", fontWeight:700 }}>
+                              {r.pnm_interview || "—"}
+                            </td>
+                            <td style={{ textAlign:"center", padding:"7px 0 7px 6px", color: r.event > 0 ? "#2E8B57" : "#ccc", fontWeight:700 }}>
+                              {r.event || "—"}
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
               </div>
 
               {/* Leaderboard */}
