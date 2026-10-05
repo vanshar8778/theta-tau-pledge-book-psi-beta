@@ -26,7 +26,6 @@ const PNM_NAMES = [
   "Rohan Cortes",
   "Ryan Gonzalez",
   "Sal Pellegrino",
-  "Stan Ellison",
   "Travis Schultz",
   "Violet Pyles",
 ];
