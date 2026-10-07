@@ -85,6 +85,8 @@ export default function PledgeBook() {
   const [pwInput,       setPwInput]       = useState("");
   const [pwError,       setPwError]       = useState(false);
   const [filter,        setFilter]        = useState("pending");
+  const [typeFilter,    setTypeFilter]    = useState("all");
+  const [pnmFilter,     setPnmFilter]     = useState("");
   const [expandedId,    setExpandedId]    = useState(null);
   const [expandedPhoto, setExpandedPhoto] = useState(null);
   const [showQR,        setShowQR]        = useState(false);
@@ -105,23 +107,20 @@ export default function PledgeBook() {
   // Step 1: corner tap (only when Johannes is selected in dropdown)
   function handleCornerTap() {
     if (nameInput !== "Johannes Perret-Gentil") return;
-    if (cornerDone) return; // already waiting for logo tap
+    if (cornerDone) return;
     if (cornerTimer.current) clearTimeout(cornerTimer.current);
     const next = cornerCount + 1;
     if (next >= 5) {
       setCornerCount(0);
       setCornerDone(true);
-      // Give 8 seconds to tap the logo, then reset
-      cornerTimer.current = setTimeout(() => {
-        setCornerDone(false);
-      }, 8000);
+      cornerTimer.current = setTimeout(() => { setCornerDone(false); }, 8000);
     } else {
       setCornerCount(next);
       cornerTimer.current = setTimeout(() => setCornerCount(0), 2000);
     }
   }
 
-  // Step 2: logo tap — only triggers PM if corner sequence is complete
+  // Step 2: logo tap
   function handleLogoTap() {
     if (cornerDone) {
       if (cornerTimer.current) clearTimeout(cornerTimer.current);
@@ -129,7 +128,6 @@ export default function PledgeBook() {
       setCornerCount(0);
       setView("pm");
     }
-    // Otherwise logo tap does nothing
   }
 
   const mySubs = (n) => submissions.filter(s => s.pnmName === n);
@@ -204,10 +202,12 @@ export default function PledgeBook() {
     else setPwError(true);
   }
 
-  function leaderboard() {
+  // Leaderboard — all PNMs included (0 pts if none approved)
+  function fullLeaderboard() {
     const tally = {};
+    PNM_NAMES.forEach(name => { tally[name] = 0; });
     submissions.filter(s => s.status === "approved").forEach(s => {
-      tally[s.pnmName] = (tally[s.pnmName] || 0) + (POINTS[s.type] || 0);
+      if (tally[s.pnmName] !== undefined) tally[s.pnmName] += (POINTS[s.type] || 0);
     });
     return Object.entries(tally).sort((a, b) => b[1] - a[1]);
   }
@@ -224,6 +224,26 @@ export default function PledgeBook() {
       }
     });
     return breakdown;
+  }
+
+  // Class averages across all PNMs (approved only)
+  function calcAverages() {
+    const bd = pnmBreakdown();
+    const n  = PNM_NAMES.length;
+    const totals = { sig_active: 0, interview_active: 0, pnm_interview: 0, event: 0 };
+    PNM_NAMES.forEach(name => {
+      totals.sig_active       += bd[name].sig_active;
+      totals.interview_active += bd[name].interview_active;
+      totals.pnm_interview    += bd[name].pnm_interview;
+      totals.event            += bd[name].event;
+    });
+    return {
+      sig_active:       (totals.sig_active       / n).toFixed(1),
+      interview_active: (totals.interview_active / n).toFixed(1),
+      pnm_interview:    (totals.pnm_interview    / n).toFixed(1),
+      event:            (totals.event            / n).toFixed(1),
+      total:            ((totals.sig_active * POINTS.sig_active + totals.interview_active * POINTS.interview_active + totals.pnm_interview * POINTS.pnm_interview + totals.event * POINTS.event) / n).toFixed(1),
+    };
   }
 
   function copyLink() {
@@ -253,7 +273,14 @@ export default function PledgeBook() {
   }
 
   const pendingCount = submissions.filter(s => s.status === "pending").length;
-  const visibleSubs  = (filter === "all" ? [...submissions] : submissions.filter(s => s.status === filter)).reverse();
+
+  // Submissions list: chronological sort (newest first) + status/type/PNM filters
+  const visibleSubs = submissions
+    .filter(s => filter === "all" || s.status === filter)
+    .filter(s => typeFilter === "all" || s.type === typeFilter)
+    .filter(s => !pnmFilter || s.pnmName === pnmFilter)
+    .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+
   const selectedType = ACTIVITY_TYPES.find(a => a.id === form.type);
   const shareUrl     = typeof window !== "undefined" ? window.location.href : "";
 
@@ -273,7 +300,6 @@ export default function PledgeBook() {
 
       {/* HEADER */}
       <div style={{ position:"relative", background:"#1A2035", padding:"0 20px", display:"flex", alignItems:"center", justifyContent:"space-between", height:54 }}>
-        {/* ΘΤ logo — step 2 of PM unlock (only active after corner sequence) */}
         <div
           onClick={handleLogoTap}
           style={{ display:"flex", alignItems:"baseline", gap:10, cursor:"default", userSelect:"none" }}
@@ -282,7 +308,6 @@ export default function PledgeBook() {
           <span style={{ color:"rgba(255,255,255,0.45)", fontSize:12, letterSpacing:"0.6px" }}>Pledge Book</span>
         </div>
 
-        {/* Back to PNM button — only shows when in PM view */}
         {view === "pm" && (
           <button onClick={() => { setView("pnm"); setPmAuthed(false); setPwInput(""); }}
             style={btn({ fontSize:11, padding:"5px 14px", background:"rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.6)" })}>
@@ -290,7 +315,6 @@ export default function PledgeBook() {
           </button>
         )}
 
-        {/* Invisible top-right corner tap zone — step 1 of PM unlock */}
         {view === "pnm" && (
           <div
             onClick={handleCornerTap}
@@ -303,7 +327,7 @@ export default function PledgeBook() {
       {view === "pnm" && (
         <div style={{ maxWidth:460, margin:"0 auto", padding:"28px 16px" }}>
 
-          {/* NAME ENTRY — dropdown */}
+          {/* NAME ENTRY */}
           {pnmScreen === "name_entry" && (
             <div style={{ background:"white", borderRadius:8, padding:"44px 28px", textAlign:"center" }}>
               <div style={{ color:"#C9A84C", fontWeight:800, fontSize:34, marginBottom:8 }}>Θ Τ</div>
@@ -334,6 +358,26 @@ export default function PledgeBook() {
                 <div style={{ fontWeight:800, fontSize:22, color:"#1A2035" }}>Hey, {pnmName.split(" ")[0]} 👋</div>
                 <div style={{ color:"#aaa", fontSize:13, marginTop:2 }}>Your pledge progress</div>
               </div>
+
+              {/* Points tile */}
+              {(() => {
+                const myApproved = mySubs(pnmName).filter(s => s.status === "approved");
+                const myPts = myApproved.reduce((sum, s) => sum + (POINTS[s.type] || 0), 0);
+                const rank = fullLeaderboard().findIndex(([n]) => n === pnmName) + 1;
+                return myPts > 0 ? (
+                  <div style={{ background:"#1A2035", borderRadius:8, padding:"16px 20px", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <div>
+                      <div style={{ color:"#C9A84C", fontWeight:800, fontSize:28, lineHeight:1 }}>{myPts} pts</div>
+                      <div style={{ color:"rgba(255,255,255,0.45)", fontSize:12, marginTop:4 }}>approved points</div>
+                    </div>
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ color:"white", fontWeight:800, fontSize:22, lineHeight:1 }}>#{rank}</div>
+                      <div style={{ color:"rgba(255,255,255,0.45)", fontSize:12, marginTop:4 }}>of {PNM_NAMES.length}</div>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:18 }}>
                 {[
                   { label:"Approved", key:"approved" },
@@ -346,10 +390,11 @@ export default function PledgeBook() {
                   </div>
                 ))}
               </div>
+
               {mySubs(pnmName).length > 0 ? (
-                <div style={{ background:"white", borderRadius:8, padding:"14px 18px", marginBottom:18 }}>
+                <div style={{ background:"white", borderRadius:8, padding:"14px 18px", marginBottom:14 }}>
                   <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"0.5px", marginBottom:10 }}>RECENT</div>
-                  {[...mySubs(pnmName)].reverse().slice(0,5).map(sub => {
+                  {[...mySubs(pnmName)].sort((a,b) => new Date(b.submittedAt) - new Date(a.submittedAt)).slice(0,5).map(sub => {
                     const at = ACTIVITY_TYPES.find(a => a.id === sub.type);
                     return (
                       <div key={sub.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"1px solid #F5F4F0" }}>
@@ -366,17 +411,66 @@ export default function PledgeBook() {
                   })}
                 </div>
               ) : (
-                <div style={{ background:"white", borderRadius:8, padding:"24px", textAlign:"center", color:"#ccc", fontSize:14, marginBottom:18 }}>
+                <div style={{ background:"white", borderRadius:8, padding:"24px", textAlign:"center", color:"#ccc", fontSize:14, marginBottom:14 }}>
                   No activities logged yet
                 </div>
               )}
-              <button onClick={() => setPnmScreen("form")} style={btn({ width:"100%", padding:13, fontSize:14, background:"#1A2035", color:"#C9A84C" })}>
+
+              <button onClick={() => setPnmScreen("form")} style={btn({ width:"100%", padding:13, fontSize:14, background:"#1A2035", color:"#C9A84C", marginBottom:8 })}>
                 + LOG ACTIVITY
               </button>
+              <button onClick={() => setPnmScreen("leaderboard")} style={btn({ width:"100%", padding:11, fontSize:13, background:"white", color:"#1A2035", border:"1px solid #E0DDD5", marginBottom:2 })}>
+                🏆 View Leaderboard
+              </button>
               <button onClick={() => { setPnmName(""); setNameInput(""); setPnmScreen("name_entry"); setCornerCount(0); setCornerDone(false); }}
-                style={btn({ width:"100%", padding:9, fontSize:12, background:"none", color:"#bbb", fontWeight:400, marginTop:6 })}>
+                style={btn({ width:"100%", padding:9, fontSize:12, background:"none", color:"#bbb", fontWeight:400, marginTop:4 })}>
                 Not {pnmName.split(" ")[0]}? Switch name
               </button>
+            </div>
+          )}
+
+          {/* LEADERBOARD SCREEN */}
+          {pnmScreen === "leaderboard" && (
+            <div>
+              <button onClick={() => setPnmScreen("home")} style={btn({ background:"none", color:"#888", fontSize:13, marginBottom:14, fontWeight:600, padding:0 })}>
+                ← Back
+              </button>
+              <div style={{ fontWeight:800, fontSize:20, color:"#1A2035", marginBottom:4 }}>🏆 Leaderboard</div>
+              <div style={{ color:"#aaa", fontSize:12, marginBottom:18 }}>Approved points only</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                {fullLeaderboard().map(([name, pts], i) => {
+                  const isMe = name === pnmName;
+                  const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
+                  const firstName = name.split(" ")[0];
+                  const lastName  = name.split(" ").slice(-1)[0];
+                  return (
+                    <div key={name} style={{
+                      background: isMe ? "#1A2035" : "white",
+                      borderRadius:6,
+                      padding:"11px 16px",
+                      display:"flex",
+                      alignItems:"center",
+                      gap:12,
+                      boxShadow: isMe ? "0 2px 8px rgba(26,32,53,0.18)" : "none",
+                      border: isMe ? "2px solid #C9A84C" : "2px solid transparent",
+                    }}>
+                      <div style={{ width:24, textAlign:"center" }}>
+                        {medal
+                          ? <span style={{ fontSize:16 }}>{medal}</span>
+                          : <span style={{ fontSize:12, color: isMe ? "rgba(255,255,255,0.45)" : "#ccc", fontWeight:700 }}>{i+1}</span>
+                        }
+                      </div>
+                      <div style={{ flex:1, fontSize:14, fontWeight: isMe ? 800 : 500, color: isMe ? "white" : "#1A2035" }}>
+                        {firstName} {lastName}
+                        {isMe && <span style={{ fontSize:11, color:"#C9A84C", marginLeft:8 }}>you</span>}
+                      </div>
+                      <div style={{ fontWeight:800, fontSize:15, color: isMe ? "#C9A84C" : pts > 0 ? "#1A2035" : "#ddd" }}>
+                        {pts > 0 ? `${pts} pts` : "—"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -430,7 +524,6 @@ export default function PledgeBook() {
                         <div style={{ fontSize:13, color:"#aaa" }}>Tap to upload a photo</div>
                       </>
                     )}
-                    {/* capture="environment" removed so iOS shows camera roll option */}
                     <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display:"none" }} />
                   </div>
                   {photoPreview && (
@@ -440,7 +533,7 @@ export default function PledgeBook() {
                     </button>
                   )}
                 </Field>
-                <Field label="Notes for PNM">
+                <Field label="Notes for PM">
                   <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes:e.target.value }))}
                     placeholder="Anything to add about this activity…" rows={3}
                     style={{ width:"100%", padding:"9px 12px", border:"1px solid #E0DDD5", borderRadius:4, fontSize:14, resize:"vertical", fontFamily:"inherit", color:"#1A2035" }} />
@@ -474,7 +567,7 @@ export default function PledgeBook() {
 
       {/* ── PM VIEW ── */}
       {view === "pm" && (
-        <div style={{ maxWidth:680, margin:"0 auto", padding:"28px 16px" }}>
+        <div style={{ maxWidth:720, margin:"0 auto", padding:"28px 16px" }}>
           {!pmAuthed ? (
             <div style={{ maxWidth:320, margin:"0 auto", background:"white", borderRadius:8, padding:"40px 28px" }}>
               <div style={{ fontWeight:800, fontSize:18, color:"#1A2035", marginBottom:4 }}>PM Access</div>
@@ -489,8 +582,8 @@ export default function PledgeBook() {
             </div>
           ) : (
             <div>
-              {/* Stats */}
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:18 }}>
+              {/* Status stat cards */}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:10 }}>
                 {["pending","approved","rejected"].map(key => (
                   <div key={key} onClick={() => setFilter(key)} style={{ background:filter===key ? "#1A2035" : "white", borderRadius:6, padding:"14px 16px", cursor:"pointer", borderBottom:`3px solid ${STATUS_COLORS[key]}` }}>
                     <div style={{ fontSize:26, fontWeight:800, color:filter===key ? STATUS_COLORS[key] : "#1A2035" }}>
@@ -501,42 +594,62 @@ export default function PledgeBook() {
                 ))}
               </div>
 
+              {/* Class averages row */}
+              {(() => {
+                const avg = calcAverages();
+                return (
+                  <div style={{ background:"white", borderRadius:8, padding:"12px 18px", marginBottom:14, display:"flex", gap:0, flexWrap:"wrap" }}>
+                    <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"0.5px", width:"100%", marginBottom:10 }}>CLASS AVERAGES (PER PNM, APPROVED)</div>
+                    {[
+                      { label:"Avg pts",        val: avg.total,            color:"#C9A84C" },
+                      { label:"Interviews",     val: avg.interview_active, color:"#4A90D9" },
+                      { label:"Sigs",           val: avg.sig_active,       color:"#7B5EA7" },
+                      { label:"PNM 1-on-1s",   val: avg.pnm_interview,    color:"#2E8B57" },
+                      { label:"Events",         val: avg.event,            color:"#D9822B" },
+                    ].map(({ label, val, color }) => (
+                      <div key={label} style={{ flex:"1 1 80px", textAlign:"center", padding:"4px 8px" }}>
+                        <div style={{ fontSize:22, fontWeight:800, color }}>{val}</div>
+                        <div style={{ fontSize:10, color:"#aaa", fontWeight:600, marginTop:2 }}>{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
               {/* PNM Activity Breakdown */}
               <div style={{ background:"white", borderRadius:8, padding:"14px 18px", marginBottom:14, overflowX:"auto" }}>
                 <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"0.5px", marginBottom:12 }}>PNM ACTIVITY BREAKDOWN (APPROVED)</div>
                 <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                   <thead>
                     <tr style={{ borderBottom:"2px solid #E0DDD5" }}>
-                      <th style={{ textAlign:"left", padding:"6px 8px 8px 0", color:"#1A2035", fontWeight:800, fontSize:12 }}>PNM</th>
-                      <th style={{ textAlign:"center", padding:"6px 6px 8px", color:"#555", fontWeight:700, fontSize:11 }}>✍️ Sigs</th>
-                      <th style={{ textAlign:"center", padding:"6px 6px 8px", color:"#555", fontWeight:700, fontSize:11 }}>🤝 Interviews</th>
-                      <th style={{ textAlign:"center", padding:"6px 6px 8px", color:"#555", fontWeight:700, fontSize:11 }}>💬 PNM 1-on-1s</th>
-                      <th style={{ textAlign:"center", padding:"6px 0 8px 6px", color:"#555", fontWeight:700, fontSize:11 }}>📅 Events</th>
+                      <th style={{ textAlign:"left",   padding:"6px 8px 8px 0",  color:"#1A2035", fontWeight:800, fontSize:12 }}>PNM</th>
+                      <th style={{ textAlign:"center", padding:"6px 6px 8px",    color:"#555",    fontWeight:700, fontSize:11 }}>✍️ Sigs</th>
+                      <th style={{ textAlign:"center", padding:"6px 6px 8px",    color:"#555",    fontWeight:700, fontSize:11 }}>🤝 Interviews</th>
+                      <th style={{ textAlign:"center", padding:"6px 6px 8px",    color:"#555",    fontWeight:700, fontSize:11 }}>💬 PNM 1-on-1s</th>
+                      <th style={{ textAlign:"center", padding:"6px 6px 8px",    color:"#555",    fontWeight:700, fontSize:11 }}>📅 Events</th>
+                      <th style={{ textAlign:"center", padding:"6px 0 8px 6px",  color:"#C9A84C", fontWeight:700, fontSize:11 }}>Pts</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(() => {
-                      const bd = pnmBreakdown();
-                      return PNM_NAMES.map((name, i) => {
-                        const r = bd[name];
+                      const bd  = pnmBreakdown();
+                      const lb  = Object.fromEntries(fullLeaderboard());
+                      // Sort by total points desc
+                      const sorted = [...PNM_NAMES].sort((a, b) => (lb[b] || 0) - (lb[a] || 0));
+                      return sorted.map((name, i) => {
+                        const r     = bd[name];
+                        const pts   = lb[name] || 0;
                         const total = r.sig_active + r.interview_active + r.pnm_interview + r.event;
                         return (
                           <tr key={name} style={{ borderBottom:"1px solid #F5F4F0", background: i % 2 === 0 ? "transparent" : "#FAFAF8" }}>
-                            <td style={{ padding:"7px 8px 7px 0", color:"#1A2035", fontWeight: total > 0 ? 600 : 400 }}>
+                            <td style={{ padding:"7px 8px 7px 0", color:"#1A2035", fontWeight: total > 0 ? 600 : 400, whiteSpace:"nowrap" }}>
                               {name.split(" ")[0]} {name.split(" ").slice(-1)[0]}
                             </td>
-                            <td style={{ textAlign:"center", padding:"7px 6px", color: r.sig_active > 0 ? "#2E8B57" : "#ccc", fontWeight:700 }}>
-                              {r.sig_active || "—"}
-                            </td>
-                            <td style={{ textAlign:"center", padding:"7px 6px", color: r.interview_active > 0 ? "#2E8B57" : "#ccc", fontWeight:700 }}>
-                              {r.interview_active || "—"}
-                            </td>
-                            <td style={{ textAlign:"center", padding:"7px 6px", color: r.pnm_interview > 0 ? "#2E8B57" : "#ccc", fontWeight:700 }}>
-                              {r.pnm_interview || "—"}
-                            </td>
-                            <td style={{ textAlign:"center", padding:"7px 0 7px 6px", color: r.event > 0 ? "#2E8B57" : "#ccc", fontWeight:700 }}>
-                              {r.event || "—"}
-                            </td>
+                            <td style={{ textAlign:"center", padding:"7px 6px", color: r.sig_active       > 0 ? "#7B5EA7" : "#ccc", fontWeight:700 }}>{r.sig_active       || "—"}</td>
+                            <td style={{ textAlign:"center", padding:"7px 6px", color: r.interview_active > 0 ? "#4A90D9" : "#ccc", fontWeight:700 }}>{r.interview_active || "—"}</td>
+                            <td style={{ textAlign:"center", padding:"7px 6px", color: r.pnm_interview    > 0 ? "#2E8B57" : "#ccc", fontWeight:700 }}>{r.pnm_interview    || "—"}</td>
+                            <td style={{ textAlign:"center", padding:"7px 6px", color: r.event            > 0 ? "#D9822B" : "#ccc", fontWeight:700 }}>{r.event            || "—"}</td>
+                            <td style={{ textAlign:"center", padding:"7px 0 7px 6px", color: pts > 0 ? "#C9A84C" : "#ccc", fontWeight:800 }}>{pts || "—"}</td>
                           </tr>
                         );
                       });
@@ -545,21 +658,7 @@ export default function PledgeBook() {
                 </table>
               </div>
 
-              {/* Leaderboard */}
-              {leaderboard().length > 0 && (
-                <div style={{ background:"white", borderRadius:8, padding:"14px 18px", marginBottom:14 }}>
-                  <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"0.5px", marginBottom:10 }}>LEADERBOARD</div>
-                  {leaderboard().map(([name, pts], i) => (
-                    <div key={name} style={{ display:"flex", alignItems:"center", gap:12, padding:"5px 0" }}>
-                      <div style={{ width:18, fontSize:11, color:i===0 ? "#C9A84C" : "#ccc", fontWeight:800, textAlign:"right" }}>{i+1}</div>
-                      <div style={{ flex:1, fontSize:14, fontWeight:i===0 ? 700 : 400, color:"#1A2035" }}>{name}</div>
-                      <div style={{ fontWeight:800, color:"#C9A84C", fontSize:14 }}>{pts} pts</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Share / QR + Export CSV */}
+              {/* Share / Export */}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
                 <div style={{ background:"white", borderRadius:8, padding:"14px 18px" }}>
                   <div style={{ fontSize:13, fontWeight:700, color:"#1A2035", marginBottom:4 }}>Share with PNMs</div>
@@ -588,22 +687,62 @@ export default function PledgeBook() {
                 </div>
               </div>
 
-              {/* Filter tabs */}
-              <div style={{ display:"flex", gap:6, marginBottom:12 }}>
+              {/* ── Submission filters ── */}
+              {/* Row 1: status */}
+              <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
                 {["pending","approved","rejected","all"].map(f => (
                   <button key={f} onClick={() => setFilter(f)} style={btn({
                     padding:"5px 14px", borderRadius:20, fontSize:12,
-                    background:filter===f ? "#1A2035" : "white",
-                    color:filter===f ? "#C9A84C" : "#888",
+                    background: filter===f ? "#1A2035" : "white",
+                    color:      filter===f ? "#C9A84C" : "#888",
                     textTransform:"capitalize",
                   })}>{f}</button>
                 ))}
               </div>
 
-              {/* Submissions */}
+              {/* Row 2: activity type */}
+              <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
+                {[
+                  { id:"all",              label:"All types" },
+                  { id:"interview_active", label:"🤝 Interviews" },
+                  { id:"sig_active",       label:"✍️ Sigs" },
+                  { id:"pnm_interview",    label:"💬 PNM 1-on-1" },
+                  { id:"event",            label:"📅 Events" },
+                ].map(f => (
+                  <button key={f.id} onClick={() => setTypeFilter(f.id)} style={btn({
+                    padding:"5px 12px", borderRadius:20, fontSize:11,
+                    background: typeFilter===f.id ? "#E8EBF2" : "white",
+                    color:      typeFilter===f.id ? "#1A2035" : "#aaa",
+                    fontWeight: typeFilter===f.id ? 800 : 600,
+                    border: typeFilter===f.id ? "1.5px solid #1A2035" : "1.5px solid transparent",
+                  })}>{f.label}</button>
+                ))}
+              </div>
+
+              {/* Row 3: PNM filter */}
+              <div style={{ marginBottom:12 }}>
+                <select
+                  value={pnmFilter}
+                  onChange={e => setPnmFilter(e.target.value)}
+                  style={{ padding:"6px 12px", border:"1px solid #E0DDD5", borderRadius:20, fontSize:12, fontFamily:"inherit", background:"white", color: pnmFilter ? "#1A2035" : "#aaa", cursor:"pointer" }}
+                >
+                  <option value="">All PNMs</option>
+                  {PNM_NAMES.map(name => (
+                    <option key={name} value={name}>{name.split(" ")[0]} {name.split(" ").slice(-1)[0]}</option>
+                  ))}
+                </select>
+                {pnmFilter && (
+                  <button onClick={() => setPnmFilter("")} style={btn({ marginLeft:8, padding:"5px 10px", borderRadius:20, fontSize:11, background:"none", color:"#B83232", fontWeight:700 })}>
+                    ✕ clear
+                  </button>
+                )}
+                <span style={{ marginLeft:12, fontSize:11, color:"#aaa" }}>{visibleSubs.length} result{visibleSubs.length !== 1 ? "s" : ""}</span>
+              </div>
+
+              {/* Submissions list */}
               {visibleSubs.length === 0 ? (
                 <div style={{ background:"white", borderRadius:8, padding:40, textAlign:"center", color:"#ccc", fontSize:14 }}>
-                  No {filter} submissions
+                  No submissions match these filters
                 </div>
               ) : (
                 <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
@@ -628,7 +767,7 @@ export default function PledgeBook() {
                               {sub.eventName   && <span style={{ color:"#aaa" }}> · {sub.eventName}</span>}
                             </div>
                             <div style={{ fontSize:11, color:"#ccc", marginTop:4 }}>
-                              {sub.date} · submitted {new Date(sub.submittedAt).toLocaleDateString()}
+                              {sub.date} · submitted {new Date(sub.submittedAt).toLocaleString()}
                             </div>
                           </div>
                           <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6, flexShrink:0 }}>
