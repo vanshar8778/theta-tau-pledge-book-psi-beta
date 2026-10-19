@@ -246,6 +246,32 @@ export default function PledgeBook() {
     };
   }
 
+  function calcMedians() {
+    const bd   = pnmBreakdown();
+    const lb   = Object.fromEntries(fullLeaderboard());
+    const vals = { sig_active: [], interview_active: [], pnm_interview: [], event: [], total: [] };
+    PNM_NAMES.forEach(name => {
+      const r = bd[name];
+      vals.sig_active.push(r.sig_active);
+      vals.interview_active.push(r.interview_active);
+      vals.pnm_interview.push(r.pnm_interview);
+      vals.event.push(r.event);
+      vals.total.push(lb[name] || 0);
+    });
+    function med(arr) {
+      const s = [...arr].sort((a, b) => a - b);
+      const m = Math.floor(s.length / 2);
+      return (s.length % 2 !== 0 ? s[m] : (s[m - 1] + s[m]) / 2).toFixed(1);
+    }
+    return {
+      sig_active:       med(vals.sig_active),
+      interview_active: med(vals.interview_active),
+      pnm_interview:    med(vals.pnm_interview),
+      event:            med(vals.event),
+      total:            med(vals.total),
+    };
+  }
+
   function copyLink() {
     navigator.clipboard?.writeText(window.location.href)
       .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
@@ -393,7 +419,12 @@ export default function PledgeBook() {
 
               {mySubs(pnmName).length > 0 ? (
                 <div style={{ background:"white", borderRadius:8, padding:"14px 18px", marginBottom:14 }}>
-                  <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"0.5px", marginBottom:10 }}>RECENT</div>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                    <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"0.5px" }}>RECENT</div>
+                    <button onClick={() => setPnmScreen("my_activities")} style={btn({ background:"none", color:"#C9A84C", fontSize:11, fontWeight:700, padding:0 })}>
+                      View All ({mySubs(pnmName).length}) →
+                    </button>
+                  </div>
                   {[...mySubs(pnmName)].sort((a,b) => new Date(b.submittedAt) - new Date(a.submittedAt)).slice(0,5).map(sub => {
                     const at = ACTIVITY_TYPES.find(a => a.id === sub.type);
                     return (
@@ -471,6 +502,52 @@ export default function PledgeBook() {
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* MY ACTIVITIES */}
+          {pnmScreen === "my_activities" && (
+            <div>
+              <button onClick={() => setPnmScreen("home")} style={btn({ background:"none", color:"#888", fontSize:13, marginBottom:14, fontWeight:600, padding:0 })}>
+                ← Back
+              </button>
+              <div style={{ fontWeight:800, fontSize:20, color:"#1A2035", marginBottom:2 }}>My Activities</div>
+              <div style={{ color:"#aaa", fontSize:12, marginBottom:18 }}>{mySubs(pnmName).length} submission{mySubs(pnmName).length !== 1 ? "s" : ""}</div>
+              {mySubs(pnmName).length === 0 ? (
+                <div style={{ background:"white", borderRadius:8, padding:"24px", textAlign:"center", color:"#ccc", fontSize:14 }}>
+                  No activities logged yet
+                </div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {[...mySubs(pnmName)].sort((a,b) => new Date(b.submittedAt) - new Date(a.submittedAt)).map(sub => {
+                    const at = ACTIVITY_TYPES.find(a => a.id === sub.type);
+                    return (
+                      <div key={sub.id} style={{ background:"white", borderRadius:6, padding:"12px 16px", borderLeft:`4px solid ${STATUS_COLORS[sub.status]}` }}>
+                        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10 }}>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:14, fontWeight:700, color:"#1A2035" }}>{at?.icon} {at?.label}</div>
+                            {(sub.contactName || sub.eventName) && (
+                              <div style={{ fontSize:12, color:"#888", marginTop:2 }}>{sub.contactName || sub.eventName}</div>
+                            )}
+                            <div style={{ fontSize:11, color:"#bbb", marginTop:3 }}>{sub.date} · {new Date(sub.submittedAt).toLocaleDateString()}</div>
+                            {sub.notes && (
+                              <div style={{ fontSize:11, color:"#aaa", fontStyle:"italic", marginTop:5, borderLeft:"2px solid #E0DDD5", paddingLeft:6 }}>"{sub.notes}"</div>
+                            )}
+                          </div>
+                          <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4, flexShrink:0 }}>
+                            <span style={{ fontSize:10, padding:"3px 10px", borderRadius:10, background:STATUS_BG[sub.status], color:STATUS_COLORS[sub.status], fontWeight:700 }}>
+                              {sub.status}
+                            </span>
+                            {sub.status === "approved" && (
+                              <span style={{ fontSize:11, color:"#C9A84C", fontWeight:800 }}>+{POINTS[sub.type]} pts</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -594,24 +671,31 @@ export default function PledgeBook() {
                 ))}
               </div>
 
-              {/* Class averages row */}
+              {/* Class stats row (mean + median) */}
               {(() => {
                 const avg = calcAverages();
+                const med = calcMedians();
+                const metrics = [
+                  { label:"Pts",          avg: avg.total,            med: med.total,            color:"#C9A84C" },
+                  { label:"Interviews",   avg: avg.interview_active, med: med.interview_active, color:"#4A90D9" },
+                  { label:"Sigs",         avg: avg.sig_active,       med: med.sig_active,       color:"#7B5EA7" },
+                  { label:"PNM 1-on-1s",  avg: avg.pnm_interview,    med: med.pnm_interview,    color:"#2E8B57" },
+                  { label:"Events",       avg: avg.event,             med: med.event,            color:"#D9822B" },
+                ];
                 return (
-                  <div style={{ background:"white", borderRadius:8, padding:"12px 18px", marginBottom:14, display:"flex", gap:0, flexWrap:"wrap" }}>
-                    <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"0.5px", width:"100%", marginBottom:10 }}>CLASS AVERAGES (PER PNM, APPROVED)</div>
-                    {[
-                      { label:"Avg pts",        val: avg.total,            color:"#C9A84C" },
-                      { label:"Interviews",     val: avg.interview_active, color:"#4A90D9" },
-                      { label:"Sigs",           val: avg.sig_active,       color:"#7B5EA7" },
-                      { label:"PNM 1-on-1s",   val: avg.pnm_interview,    color:"#2E8B57" },
-                      { label:"Events",         val: avg.event,            color:"#D9822B" },
-                    ].map(({ label, val, color }) => (
-                      <div key={label} style={{ flex:"1 1 80px", textAlign:"center", padding:"4px 8px" }}>
-                        <div style={{ fontSize:22, fontWeight:800, color }}>{val}</div>
-                        <div style={{ fontSize:10, color:"#aaa", fontWeight:600, marginTop:2 }}>{label}</div>
-                      </div>
-                    ))}
+                  <div style={{ background:"white", borderRadius:8, padding:"12px 18px", marginBottom:14 }}>
+                    <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"0.5px", marginBottom:10 }}>CLASS STATS (PER PNM, APPROVED)</div>
+                    <div style={{ display:"flex", gap:0, flexWrap:"wrap" }}>
+                      {metrics.map(({ label, avg: a, med: m, color }) => (
+                        <div key={label} style={{ flex:"1 1 80px", textAlign:"center", padding:"4px 8px" }}>
+                          <div style={{ fontSize:20, fontWeight:800, color }}>{a}</div>
+                          <div style={{ fontSize:9, color:"#ccc", fontWeight:600, marginTop:1 }}>mean</div>
+                          <div style={{ fontSize:14, fontWeight:800, color, opacity:0.6, marginTop:5 }}>{m}</div>
+                          <div style={{ fontSize:9, color:"#ccc", fontWeight:600, marginTop:1 }}>median</div>
+                          <div style={{ fontSize:10, color:"#aaa", fontWeight:700, marginTop:5 }}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 );
               })()}
