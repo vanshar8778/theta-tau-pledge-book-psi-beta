@@ -66,6 +66,97 @@ const DEFAULT_POINTS = { interview_active: 2, sig_active: 1.5, pnm_interview: 1,
 const STATUS_COLORS  = { pending: "#C9A84C", approved: "#2E8B57", rejected: "#B83232" };
 const STATUS_BG      = { pending: "#FDF8EC", approved: "#EDF7F1", rejected: "#FBEAEA" };
 
+// ── Scavenger hunt config ──
+// Numbers 1-53 (tasks) and 1-13 (locations) are exactly as given — don't renumber these,
+// in case they're already printed/posted anywhere. New suggestions are appended after.
+const SCAV_TASKS = [
+  { num: 1,  label: "Picture of the UT tower and balls" },
+  { num: 2,  label: "Timelapse video of team member eating a burger" },
+  { num: 3,  label: "Bury a team member in toilet paper" },
+  { num: 4,  label: "Chug a cup of milk" },
+  { num: 5,  label: "Fist bump a cop" },
+  { num: 6,  label: "3 people wearing 1 shirt" },
+  { num: 7,  label: "Team shares a drink (1 straw per team member)" },
+  { num: 8,  label: "Find a magic 8 ball" },
+  { num: 9,  label: "Take a polaroid picture" },
+  { num: 10, label: "Find money from a country that isn't the US" },
+  { num: 11, label: "Run a race at caven clark field against a stranger (must win)" },
+  { num: 12, label: "Score a basket with a basketball" },
+  { num: 13, label: "Paint someone's nails" },
+  { num: 14, label: "Find a lost pet sign" },
+  { num: 15, label: "Team shares ice cream (1 spoon per team member)" },
+  { num: 16, label: "Smell a flower" },
+  { num: 17, label: "Do a handstand" },
+  { num: 18, label: "Propose to a stranger (must have a prop to substitute for ring, must get on one knee)" },
+  { num: 19, label: "All team members sitting in one chair" },
+  { num: 20, label: "Find a cucumber" },
+  { num: 21, label: "All team members in a single bathroom stall" },
+  { num: 22, label: "Jump rope" },
+  { num: 23, label: "Land a bottle flip" },
+  { num: 24, label: "Find a knight (can be PNM created knight)" },
+  { num: 25, label: "Find a cardboard cutout of a person" },
+  { num: 26, label: "Punch a stuffed animal" },
+  { num: 27, label: "Take a bite of a stick of butter" },
+  { num: 28, label: "Picture of your team with bodies assembled in the shape of 'OT'" },
+  { num: 29, label: "Cuddle the clockknot" },
+  { num: 30, label: "Find a squirrel" },
+  { num: 31, label: "Do a cartwheel" },
+  { num: 32, label: "Pet a dog" },
+  { num: 33, label: "Pet a turtle" },
+  { num: 34, label: "Pet Arty" },
+  { num: 35, label: "Pump gas for a stranger" },
+  { num: 36, label: "Find a wheelbarrow" },
+  { num: 37, label: "Eat a dino nugget" },
+  { num: 38, label: "Find a reel liked by Arty or Kristin" },
+  { num: 39, label: "Sing the national anthem" },
+  { num: 40, label: "Find a venus fly trap" },
+  { num: 41, label: "Bite a lemon" },
+  { num: 42, label: "Lady and the Tramp something with your team" },
+  { num: 43, label: "Find an old regent of OT" },
+  { num: 44, label: "Find an alumni of OT" },
+  { num: 45, label: "Find dinosaur bones on campus" },
+  { num: 46, label: "Do a pull up at greg gym" },
+  { num: 47, label: "Jump in the fountain" },
+  { num: 48, label: "Pretend a random person is a celebrity" },
+  { num: 49, label: "Ride a bus" },
+  { num: 50, label: "Jersey swap with a stranger" },
+  { num: 51, label: "Bark at someone" },
+  { num: 52, label: "Hold up a sign asking for a high five and get one without talking" },
+  { num: 53, label: "Talk to the Arrows of Christ people" },
+  // Suggested additions — delete any you don't want, these numbers aren't printed anywhere
+  { num: 54, label: "Get a stranger to teach your team a dance move, on video" },
+  { num: 55, label: "Order the weirdest item on a food truck menu and eat it" },
+  { num: 56, label: "Get 5 strangers to throw up Hook 'em Horns in one photo" },
+  { num: 57, label: "Find someone wearing the exact same color shirt as a teammate, photo together" },
+  { num: 58, label: "Trade an item of clothing with a stranger for a photo (then trade back)" },
+  { num: 59, label: "Find a bike with a flat tire" },
+];
+
+const SCAV_LOCATIONS = [
+  { num: 1,  label: "UT Tower" },
+  { num: 2,  label: "Posse East" },
+  { num: 3,  label: "Union on 24th rooftop. Austin skyline must be in background" },
+  { num: 4,  label: "Cabo Bobs" },
+  { num: 5,  label: "LBJ lawn" },
+  { num: 6,  label: "DKR Stadium" },
+  { num: 7,  label: "Blanton Art Museum" },
+  { num: 8,  label: "Union Underground" },
+  { num: 9,  label: "Church of scientology" },
+  { num: 10, label: "Food trucks on 26th" },
+  { num: 11, label: "Littlefield attic" },
+  { num: 12, label: "Hi how are you mural" },
+  { num: 13, label: "The dungeon" },
+  // Suggested additions
+  { num: 14, label: "Littlefield Fountain" },
+  { num: 15, label: "Moody Center" },
+  { num: 16, label: "Jester Circle" },
+  { num: 17, label: "Six Pack dorm towers (25th & San Jacinto)" },
+];
+
+const DEFAULT_SCAV_POINTS = { task: 1, location: 2, gear: 3 };
+// Swap this label if you go with a different bonus item than the 3D-printed gears
+const SCAV_BONUS_ITEM_LABEL = "dark red 3D-printed gears";
+
 async function compressImage(file) {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -132,6 +223,33 @@ export default function PledgeBook() {
   const [awardError,   setAwardError]   = useState("");
   const [awardSuccess, setAwardSuccess] = useState(false);
 
+  // Scavenger hunt — shared/live config
+  const [scavActive, setScavActive] = useState(false);
+  const [scavGroups, setScavGroups] = useState([]);
+  const [scavPoints, setScavPoints] = useState(DEFAULT_SCAV_POINTS);
+  const [scavSubs,   setScavSubs]   = useState([]);
+  const [gearCounts, setGearCounts] = useState({});
+
+  // Scavenger hunt — PNM flow
+  const [scavGroup,          setScavGroup]          = useState("");
+  const [scavTab,            setScavTab]            = useState("tasks");
+  const [scavOpenItem,       setScavOpenItem]       = useState(null);
+  const [scavPhotoPreview,   setScavPhotoPreview]   = useState(null);
+  const [scavPhotoFile,      setScavPhotoFile]      = useState(null);
+  const [scavNote,           setScavNote]           = useState("");
+  const [scavSubmitError,    setScavSubmitError]    = useState("");
+  const [scavSubmittingBusy, setScavSubmittingBusy] = useState(false);
+  const scavFileRef = useRef();
+
+  // Scavenger hunt — PM admin
+  const [scavPanelOpen,   setScavPanelOpen]   = useState(true);
+  const [scavNewGroup,    setScavNewGroup]    = useState("");
+  const [scavPointsDraft, setScavPointsDraft] = useState(DEFAULT_SCAV_POINTS);
+  const [scavPointsSaved, setScavPointsSaved] = useState(false);
+  const [scavFilter,      setScavFilter]      = useState("pending");
+  const [scavExpandedId,  setScavExpandedId]  = useState(null);
+  const [scavExpandedPhoto, setScavExpandedPhoto] = useState(null);
+
   useEffect(() => {
     const unsub = onSnapshot(
       collection(db, "submissions"),
@@ -157,6 +275,67 @@ export default function PledgeBook() {
       (err) => console.error("Points settings error:", err)
     );
     return () => unsub();
+  }, []);
+
+  // Scavenger hunt: live settings + data
+  useEffect(() => {
+    const unsub = onSnapshot(
+      doc(db, "settings", "scavengerHunt"),
+      (snap) => setScavActive(snap.exists() ? !!snap.data().active : false),
+      (err) => console.error("Scav hunt setting error:", err)
+    );
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      doc(db, "settings", "scavGroups"),
+      (snap) => {
+        if (snap.exists() && Array.isArray(snap.data().names)) setScavGroups(snap.data().names);
+      },
+      (err) => console.error("Scav groups error:", err)
+    );
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      doc(db, "settings", "scavPoints"),
+      (snap) => {
+        if (snap.exists()) {
+          const merged = { ...DEFAULT_SCAV_POINTS, ...snap.data() };
+          setScavPoints(merged);
+          setScavPointsDraft(merged);
+        }
+      },
+      (err) => console.error("Scav points error:", err)
+    );
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      doc(db, "settings", "scavGears"),
+      (snap) => setGearCounts(snap.exists() ? snap.data() : {}),
+      (err) => console.error("Scav gears error:", err)
+    );
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, "scavSubmissions"),
+      (snap) => setScavSubs(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      (err) => console.error("Scav submissions error:", err)
+    );
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("scavGroup");
+      if (saved) setScavGroup(saved);
+    } catch (_) {}
   }, []);
 
   // Step 1: corner tap (only when Kaylin is selected in dropdown)
@@ -415,6 +594,144 @@ export default function PledgeBook() {
     }
   }
 
+  // ── Scavenger hunt: PNM-side helpers ──
+  function pickScavGroup(name) {
+    setScavGroup(name);
+    try { localStorage.setItem("scavGroup", name); } catch (_) {}
+  }
+
+  function leaveScavGroup() {
+    setScavGroup("");
+    try { localStorage.removeItem("scavGroup"); } catch (_) {}
+  }
+
+  function scavItemStatus(category, number) {
+    const match = scavSubs.find(s => s.group === scavGroup && s.category === category && s.number === number);
+    return match ? match.status : null;
+  }
+
+  async function handleScavPhoto(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const compressed = await compressImage(file);
+    setScavPhotoPreview(compressed);
+    setScavPhotoFile(compressed);
+  }
+
+  function openScavItem(key) {
+    setScavOpenItem(key);
+    setScavPhotoPreview(null);
+    setScavPhotoFile(null);
+    setScavNote("");
+    setScavSubmitError("");
+  }
+
+  async function submitScavItem(category, number, label) {
+    setScavSubmitError("");
+    setScavSubmittingBusy(true);
+    const id  = crypto.randomUUID();
+    const sub = {
+      group: scavGroup,
+      category, number, label,
+      hasPhoto: !!scavPhotoFile,
+      notes: scavNote,
+      status: "pending",
+      submittedAt: new Date().toISOString(),
+    };
+    try {
+      await setDoc(doc(db, "scavSubmissions", id), sub);
+      if (scavPhotoFile) await setDoc(doc(db, "scavPhotos", id), { data: scavPhotoFile });
+    } catch (e) {
+      setScavSubmitError("Failed to submit — check your connection and try again.");
+      setScavSubmittingBusy(false);
+      return;
+    }
+    setScavPhotoPreview(null);
+    setScavPhotoFile(null);
+    setScavNote("");
+    setScavSubmittingBusy(false);
+    setScavOpenItem(null);
+  }
+
+  // ── Scavenger hunt: PM-side helpers ──
+  async function toggleScavHunt() {
+    try {
+      await setDoc(doc(db, "settings", "scavengerHunt"), { active: !scavActive });
+    } catch (e) { console.error("Failed to toggle scavenger hunt:", e); }
+  }
+
+  async function addScavGroup() {
+    const name = scavNewGroup.trim();
+    if (!name || scavGroups.includes(name)) { setScavNewGroup(""); return; }
+    try {
+      await setDoc(doc(db, "settings", "scavGroups"), { names: [...scavGroups, name] });
+      setScavNewGroup("");
+    } catch (e) { console.error("Failed to add group:", e); }
+  }
+
+  async function removeScavGroup(name) {
+    try {
+      await setDoc(doc(db, "settings", "scavGroups"), { names: scavGroups.filter(g => g !== name) });
+    } catch (e) { console.error("Failed to remove group:", e); }
+  }
+
+  async function saveScavPoints() {
+    try {
+      await setDoc(doc(db, "settings", "scavPoints"), {
+        task:     Number(scavPointsDraft.task)     || 0,
+        location: Number(scavPointsDraft.location) || 0,
+        gear:     Number(scavPointsDraft.gear)      || 0,
+      });
+      setScavPointsSaved(true);
+      setTimeout(() => setScavPointsSaved(false), 2000);
+    } catch (e) { console.error("Failed to save scav points:", e); }
+  }
+
+  async function setGearCount(group, count) {
+    try {
+      await setDoc(doc(db, "settings", "scavGears"), { ...gearCounts, [group]: Math.max(0, count) });
+    } catch (e) { console.error("Failed to update gear count:", e); }
+  }
+
+  async function decideScav(id, status) {
+    try {
+      await updateDoc(doc(db, "scavSubmissions", id), { status, decidedAt: new Date().toISOString() });
+    } catch (e) { console.error("Scav update failed:", e); }
+  }
+
+  async function toggleScavExpand(id) {
+    if (scavExpandedId === id) { setScavExpandedId(null); setScavExpandedPhoto(null); return; }
+    setScavExpandedId(id);
+    setScavExpandedPhoto(null);
+    const sub = scavSubs.find(s => s.id === id);
+    if (sub?.hasPhoto) {
+      try {
+        const snap = await getDoc(doc(db, "scavPhotos", id));
+        if (snap.exists()) setScavExpandedPhoto(snap.data().data);
+      } catch (_) {}
+    }
+  }
+
+  // Standings: union of configured groups + any group name that appears in data,
+  // so a removed/renamed group's history never silently disappears.
+  function scavStandings() {
+    const names = new Set(scavGroups);
+    scavSubs.forEach(s => names.add(s.group));
+    Object.keys(gearCounts).forEach(g => names.add(g));
+    const tally = {};
+    names.forEach(g => { tally[g] = { tasks: 0, locations: 0, gears: gearCounts[g] || 0, points: 0 }; });
+    scavSubs.filter(s => s.status === "approved").forEach(s => {
+      if (!tally[s.group]) return;
+      if (s.category === "task")     tally[s.group].tasks += 1;
+      if (s.category === "location") tally[s.group].locations += 1;
+    });
+    Object.keys(tally).forEach(g => {
+      const t = tally[g];
+      t.points = t.tasks * scavPoints.task + t.locations * scavPoints.location + t.gears * scavPoints.gear;
+    });
+    return Object.entries(tally).sort((a, b) => b[1].points - a[1].points);
+  }
+
   const pendingCount = submissions.filter(s => s.status === "pending").length;
 
   // Submissions list: chronological sort (newest first) + status/type/PNM filters
@@ -516,10 +833,136 @@ export default function PledgeBook() {
               <button onClick={() => setPnmScreen("form")} style={btn({ width:"100%", padding:14, fontSize:14, background:"#1A2035", color:"#C9A84C", marginBottom:10 })}>
                 + LOG ACTIVITY
               </button>
+              <button onClick={() => setPnmScreen("scav")} style={btn({ width:"100%", padding:14, fontSize:14, background: scavActive ? "#C9A84C" : "#EDEBE3", color: scavActive ? "#1A2035" : "#aaa", marginBottom:10 })}>
+                🗺️ {scavActive ? "SCAVENGER HUNT — LIVE" : "Scavenger Hunt"}
+              </button>
               <button onClick={() => { setPnmName(""); setNameInput(""); setPinInput(""); setPnmScreen("name_entry"); setCornerCount(0); setCornerDone(false); }}
                 style={btn({ width:"100%", padding:9, fontSize:12, background:"none", color:"#bbb", fontWeight:400, marginTop:4 })}>
                 Not {pnmName.split(" ")[0]}? Switch name
               </button>
+            </div>
+          )}
+
+          {/* SCAVENGER HUNT */}
+          {pnmScreen === "scav" && (
+            <div>
+              <button onClick={() => { setPnmScreen("home"); setScavOpenItem(null); setScavPhotoPreview(null); setScavPhotoFile(null); setScavNote(""); setScavSubmitError(""); }}
+                style={btn({ background:"none", color:"#888", fontSize:13, marginBottom:14, fontWeight:600, padding:0 })}>
+                ← Back
+              </button>
+
+              {!scavActive ? (
+                <div style={{ background:"white", borderRadius:8, padding:"40px 24px", textAlign:"center" }}>
+                  <div style={{ fontSize:40, marginBottom:10 }}>🗺️</div>
+                  <div style={{ fontWeight:800, fontSize:18, color:"#1A2035", marginBottom:6 }}>Scavenger hunt isn't live</div>
+                  <div style={{ color:"#aaa", fontSize:13 }}>Check back once your PM starts the hunt.</div>
+                </div>
+              ) : !scavGroup ? (
+                <div>
+                  <div style={{ fontWeight:800, fontSize:20, color:"#1A2035", marginBottom:4 }}>Pick your group</div>
+                  <div style={{ color:"#aaa", fontSize:12, marginBottom:16 }}>You can only submit for one group</div>
+                  {scavGroups.length === 0 ? (
+                    <div style={{ background:"white", borderRadius:8, padding:24, textAlign:"center", color:"#ccc", fontSize:14 }}>
+                      No groups set up yet — ask your PM.
+                    </div>
+                  ) : (
+                    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                      {scavGroups.map(g => (
+                        <button key={g} onClick={() => pickScavGroup(g)} style={btn({ padding:14, background:"white", color:"#1A2035", border:"1px solid #E0DDD5", fontSize:14, textAlign:"left" })}>
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:2 }}>
+                    <div style={{ fontWeight:800, fontSize:20, color:"#1A2035" }}>{scavGroup}</div>
+                    <button onClick={leaveScavGroup} style={btn({ background:"none", color:"#bbb", fontSize:11, fontWeight:600, padding:0 })}>
+                      switch group
+                    </button>
+                  </div>
+                  {(() => {
+                    const mine = scavSubs.filter(s => s.group === scavGroup);
+                    const approvedPts = mine.filter(s => s.status === "approved")
+                      .reduce((sum, s) => sum + (s.category === "task" ? scavPoints.task : scavPoints.location), 0);
+                    const pendingCt = mine.filter(s => s.status === "pending").length;
+                    return (
+                      <div style={{ color:"#aaa", fontSize:12, marginBottom:14 }}>
+                        {approvedPts} pts approved{pendingCt > 0 ? ` · ${pendingCt} pending` : ""}
+                      </div>
+                    );
+                  })()}
+
+                  <div style={{ background:"#FDF8EC", border:"1px solid #F0E6C8", borderRadius:6, padding:"10px 14px", marginBottom:14, fontSize:12, color:"#8a6d1f" }}>
+                    🔩 <strong>Bonus:</strong> hidden {SCAV_BONUS_ITEM_LABEL} around campus. Bring any you find back to the tower by 6:30 for bonus tallies — no need to submit these here.
+                  </div>
+
+                  <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+                    <button onClick={() => setScavTab("tasks")} style={btn({ flex:1, padding:10, borderRadius:20, fontSize:13, background: scavTab==="tasks" ? "#1A2035" : "white", color: scavTab==="tasks" ? "#C9A84C" : "#888", border: scavTab==="tasks" ? "none" : "1px solid #E0DDD5" })}>
+                      Tasks ({scavPoints.task}pt)
+                    </button>
+                    <button onClick={() => setScavTab("locations")} style={btn({ flex:1, padding:10, borderRadius:20, fontSize:13, background: scavTab==="locations" ? "#1A2035" : "white", color: scavTab==="locations" ? "#C9A84C" : "#888", border: scavTab==="locations" ? "none" : "1px solid #E0DDD5" })}>
+                      Locations ({scavPoints.location}pt)
+                    </button>
+                  </div>
+
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {(scavTab === "tasks" ? SCAV_TASKS : SCAV_LOCATIONS).map(item => {
+                      const category = scavTab === "tasks" ? "task" : "location";
+                      const status   = scavItemStatus(category, item.num);
+                      const key      = `${category}-${item.num}`;
+                      const isOpen   = scavOpenItem === key;
+                      const locked   = status === "pending" || status === "approved";
+                      return (
+                        <div key={key} style={{ background:"white", borderRadius:6, overflow:"hidden" }}>
+                          <div
+                            onClick={() => { if (locked) return; isOpen ? setScavOpenItem(null) : openScavItem(key); }}
+                            style={{ padding:"12px 14px", display:"flex", alignItems:"center", gap:10, cursor: locked ? "default" : "pointer" }}
+                          >
+                            <div style={{ width:22, textAlign:"center", fontSize:11, color:"#ccc", fontWeight:700, flexShrink:0 }}>{item.num}</div>
+                            <div style={{ flex:1, fontSize:13, color:"#1A2035", fontWeight: status ? 400 : 600 }}>{item.label}</div>
+                            {status ? (
+                              <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:STATUS_BG[status], color:STATUS_COLORS[status], fontWeight:700, flexShrink:0 }}>
+                                {status}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize:16, color:"#C9A84C", flexShrink:0 }}>{isOpen ? "▲" : "+"}</span>
+                            )}
+                          </div>
+                          {isOpen && !locked && (
+                            <div style={{ padding:"0 14px 14px" }}>
+                              <div
+                                onClick={() => scavFileRef.current?.click()}
+                                style={{ border:"2px dashed #E0DDD5", borderRadius:6, padding:"14px", textAlign:"center", cursor:"pointer", background:scavPhotoPreview ? "#111" : "#FAFAF8", minHeight:60, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", overflow:"hidden", marginBottom:8 }}
+                              >
+                                {scavPhotoPreview ? (
+                                  <img src={scavPhotoPreview} alt="Preview" style={{ maxWidth:"100%", maxHeight:120, borderRadius:4, objectFit:"contain" }} />
+                                ) : (
+                                  <div style={{ fontSize:12, color:"#aaa" }}>📷 Attach photo (optional)</div>
+                                )}
+                                <input ref={scavFileRef} type="file" accept="image/*" onChange={handleScavPhoto} style={{ display:"none" }} />
+                              </div>
+                              <textarea value={scavNote} onChange={e => setScavNote(e.target.value)} rows={2}
+                                placeholder="Note (optional)"
+                                style={{ width:"100%", padding:"8px 10px", border:"1px solid #E0DDD5", borderRadius:4, fontSize:13, resize:"vertical", fontFamily:"inherit", color:"#1A2035", marginBottom:8 }} />
+                              {scavSubmitError && <div style={{ color:"#B83232", fontSize:12, fontWeight:600, marginBottom:8 }}>{scavSubmitError}</div>}
+                              <button
+                                onClick={() => submitScavItem(category, item.num, item.label)}
+                                disabled={scavSubmittingBusy}
+                                style={btn({ width:"100%", padding:10, fontSize:12, background: scavSubmittingBusy ? "#aaa" : "#1A2035", color:"#C9A84C" })}
+                              >
+                                {scavSubmittingBusy ? "SUBMITTING…" : "MARK DONE"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -631,6 +1074,172 @@ export default function PledgeBook() {
             </div>
           ) : (
             <div>
+              {/* Scavenger Hunt admin panel */}
+              <div style={{ background:"white", borderRadius:8, padding:"14px 18px", marginBottom:14 }}>
+                <div onClick={() => setScavPanelOpen(o => !o)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
+                  <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"0.5px" }}>🗺️ SCAVENGER HUNT</div>
+                  <span style={{ fontSize:11, color:"#bbb" }}>{scavPanelOpen ? "▲" : "▼"}</span>
+                </div>
+
+                {scavPanelOpen && (
+                  <div style={{ marginTop:14 }}>
+                    <button onClick={toggleScavHunt} style={btn({ width:"100%", padding:13, fontSize:13, marginBottom:14, background: scavActive ? "#B83232" : "#2E8B57", color:"white" })}>
+                      {scavActive ? "⏹ STOP SCAVENGER HUNT" : "▶ START SCAVENGER HUNT"}
+                    </button>
+
+                    {/* Groups */}
+                    <div style={{ marginBottom:16 }}>
+                      <div style={{ fontSize:11, fontWeight:700, color:"#888", marginBottom:8 }}>GROUPS</div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
+                        {scavGroups.map(g => (
+                          <span key={g} style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 10px", background:"#F5F4F0", borderRadius:20, fontSize:12, color:"#1A2035", fontWeight:600 }}>
+                            {g}
+                            <span onClick={() => removeScavGroup(g)} style={{ cursor:"pointer", color:"#B83232", fontWeight:800 }}>✕</span>
+                          </span>
+                        ))}
+                        {scavGroups.length === 0 && <span style={{ fontSize:12, color:"#ccc" }}>No groups yet</span>}
+                      </div>
+                      <div style={{ display:"flex", gap:6 }}>
+                        <input value={scavNewGroup} onChange={e => setScavNewGroup(e.target.value)}
+                          onKeyDown={e => e.key === "Enter" && addScavGroup()}
+                          placeholder="New group name"
+                          style={{ flex:1, padding:"8px 10px", border:"1px solid #E0DDD5", borderRadius:4, fontSize:13, fontFamily:"inherit" }} />
+                        <button onClick={addScavGroup} style={btn({ padding:"8px 16px", background:"#1A2035", color:"#C9A84C", fontSize:12 })}>Add</button>
+                      </div>
+                    </div>
+
+                    {/* Point values */}
+                    <div style={{ marginBottom:16 }}>
+                      <div style={{ fontSize:11, fontWeight:700, color:"#888", marginBottom:8 }}>POINT VALUES</div>
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:10, marginBottom:10 }}>
+                        {[
+                          { key:"task",     label:"Task" },
+                          { key:"location", label:"Location" },
+                          { key:"gear",     label:"Gear" },
+                        ].map(({ key, label }) => (
+                          <div key={key}>
+                            <div style={{ fontSize:11, color:"#aaa", fontWeight:600, marginBottom:4 }}>{label}</div>
+                            <input type="number" step="0.5" value={scavPointsDraft[key]}
+                              onChange={e => setScavPointsDraft(p => ({ ...p, [key]: e.target.value }))}
+                              style={{ width:"100%", padding:"7px 10px", border:"1px solid #E0DDD5", borderRadius:4, fontSize:14, fontFamily:"inherit", color:"#1A2035" }} />
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={saveScavPoints} style={btn({ padding:"7px 18px", background:"#1A2035", color:"#C9A84C", fontSize:11 })}>
+                        {scavPointsSaved ? "Saved ✓" : "Save"}
+                      </button>
+                    </div>
+
+                    {/* Standings */}
+                    <div style={{ marginBottom:16, overflowX:"auto" }}>
+                      <div style={{ fontSize:11, fontWeight:700, color:"#888", marginBottom:8 }}>STANDINGS</div>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                        <thead>
+                          <tr style={{ borderBottom:"2px solid #E0DDD5" }}>
+                            <th style={{ textAlign:"left", padding:"4px 8px 6px 0", color:"#1A2035", fontWeight:800 }}>Group</th>
+                            <th style={{ textAlign:"center", padding:"4px 6px 6px", color:"#555", fontWeight:700 }}>Tasks</th>
+                            <th style={{ textAlign:"center", padding:"4px 6px 6px", color:"#555", fontWeight:700 }}>Locations</th>
+                            <th style={{ textAlign:"center", padding:"4px 6px 6px", color:"#555", fontWeight:700 }}>🔩 Gears</th>
+                            <th style={{ textAlign:"center", padding:"4px 0 6px 6px", color:"#C9A84C", fontWeight:700 }}>Pts</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {scavStandings().map(([group, s], i) => (
+                            <tr key={group} style={{ borderBottom:"1px solid #F5F4F0", background: i % 2 === 0 ? "transparent" : "#FAFAF8" }}>
+                              <td style={{ padding:"6px 8px 6px 0", color:"#1A2035", fontWeight:600, whiteSpace:"nowrap" }}>{group}</td>
+                              <td style={{ textAlign:"center", padding:"6px" }}>{s.tasks || "—"}</td>
+                              <td style={{ textAlign:"center", padding:"6px" }}>{s.locations || "—"}</td>
+                              <td style={{ textAlign:"center", padding:"6px" }}>
+                                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                                  <button onClick={() => setGearCount(group, (gearCounts[group]||0) - 1)} style={btn({ padding:"1px 7px", background:"#F5F4F0", color:"#888", fontSize:11 })}>−</button>
+                                  <span style={{ minWidth:14, display:"inline-block", textAlign:"center" }}>{gearCounts[group] || 0}</span>
+                                  <button onClick={() => setGearCount(group, (gearCounts[group]||0) + 1)} style={btn({ padding:"1px 7px", background:"#F5F4F0", color:"#888", fontSize:11 })}>+</button>
+                                </div>
+                              </td>
+                              <td style={{ textAlign:"center", padding:"6px 0 6px 6px", color:"#C9A84C", fontWeight:800 }}>{s.points || "—"}</td>
+                            </tr>
+                          ))}
+                          {scavStandings().length === 0 && (
+                            <tr><td colSpan={5} style={{ padding:12, textAlign:"center", color:"#ccc" }}>No groups yet</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Submission review */}
+                    <div>
+                      <div style={{ fontSize:11, fontWeight:700, color:"#888", marginBottom:8 }}>SUBMISSIONS</div>
+                      <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
+                        {["pending","approved","rejected","all"].map(f => (
+                          <button key={f} onClick={() => setScavFilter(f)} style={btn({
+                            padding:"5px 14px", borderRadius:20, fontSize:12,
+                            background: scavFilter===f ? "#1A2035" : "white",
+                            color: scavFilter===f ? "#C9A84C" : "#888",
+                            border: scavFilter===f ? "none" : "1px solid #E0DDD5",
+                            textTransform:"capitalize",
+                          })}>{f}</button>
+                        ))}
+                      </div>
+                      {(() => {
+                        const list = scavSubs
+                          .filter(s => scavFilter === "all" || s.status === scavFilter)
+                          .sort((a,b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+                        if (list.length === 0) {
+                          return <div style={{ padding:24, textAlign:"center", color:"#ccc", fontSize:13 }}>No submissions here</div>;
+                        }
+                        return (
+                          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                            {list.map(sub => {
+                              const expanded = scavExpandedId === sub.id;
+                              const hasDetail = sub.notes || sub.hasPhoto;
+                              return (
+                                <div key={sub.id} style={{ borderRadius:6, borderLeft:`4px solid ${STATUS_COLORS[sub.status]}`, background:"#FAFAF8" }}>
+                                  <div style={{ padding:"10px 12px", display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10 }}>
+                                    <div style={{ flex:1, minWidth:0 }}>
+                                      <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                                        <span style={{ fontWeight:800, fontSize:14, color:"#1A2035" }}>{sub.group}</span>
+                                        <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:STATUS_BG[sub.status], color:STATUS_COLORS[sub.status], fontWeight:700 }}>{sub.status}</span>
+                                        {sub.hasPhoto && <span style={{ fontSize:12 }}>📷</span>}
+                                      </div>
+                                      <div style={{ fontSize:12, color:"#555", marginTop:3 }}>
+                                        {sub.category === "task" ? "🎯 Task" : "📍 Location"} #{sub.number} — {sub.label}
+                                      </div>
+                                      <div style={{ fontSize:10, color:"#ccc", marginTop:3 }}>{new Date(sub.submittedAt).toLocaleString()}</div>
+                                    </div>
+                                    <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:5, flexShrink:0 }}>
+                                      {sub.status === "pending" ? (
+                                        <div style={{ display:"flex", gap:5 }}>
+                                          <button onClick={() => decideScav(sub.id,"approved")} style={btn({ padding:"5px 10px", background:"#2E8B57", color:"white", fontSize:11 })}>✓</button>
+                                          <button onClick={() => decideScav(sub.id,"rejected")} style={btn({ padding:"5px 10px", background:"#B83232", color:"white", fontSize:11 })}>✗</button>
+                                        </div>
+                                      ) : (
+                                        <button onClick={() => decideScav(sub.id,"pending")} style={btn({ padding:"3px 8px", background:"none", color:"#ccc", border:"1px solid #E0DDD5", fontSize:10, fontWeight:600 })}>undo</button>
+                                      )}
+                                      {hasDetail && (
+                                        <button onClick={() => toggleScavExpand(sub.id)} style={btn({ background:"none", color:"#bbb", fontSize:11, fontWeight:600, padding:0 })}>
+                                          {expanded ? "▲ less" : "▼ more"}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {expanded && (
+                                    <div style={{ padding:"0 12px 10px", borderTop:"1px solid #F0EFE9" }}>
+                                      {sub.notes && <div style={{ fontSize:12, color:"#666", fontStyle:"italic", margin:"8px 0 0", borderLeft:"2px solid #E0DDD5", paddingLeft:8 }}>"{sub.notes}"</div>}
+                                      {sub.hasPhoto && !scavExpandedPhoto && <div style={{ fontSize:12, color:"#bbb", marginTop:8 }}>Loading photo…</div>}
+                                      {sub.hasPhoto && scavExpandedPhoto && <img src={scavExpandedPhoto} alt="Proof" style={{ maxWidth:"100%", borderRadius:6, marginTop:8 }} />}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Status stat cards */}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:10 }}>
                 {["pending","approved","rejected"].map(key => (
