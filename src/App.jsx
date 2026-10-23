@@ -150,7 +150,7 @@ const SCAV_LOCATIONS = [
   { num: 14, label: "Littlefield Fountain" },
   { num: 15, label: "Moody Center" },
   { num: 16, label: "Jester Circle" },
-  { num: 17, label: "Six Pack dorm towers (25th & San Jacinto)" },
+  { num: 17, label: "Travis's Apartment (Outside)" },
 ];
 
 const DEFAULT_SCAV_POINTS = { task: 1, location: 2, gear: 3 };
@@ -940,7 +940,7 @@ export default function PledgeBook() {
                                 {scavPhotoPreview ? (
                                   <img src={scavPhotoPreview} alt="Preview" style={{ maxWidth:"100%", maxHeight:120, borderRadius:4, objectFit:"contain" }} />
                                 ) : (
-                                  <div style={{ fontSize:12, color:"#aaa" }}>📷 Attach photo (optional)</div>
+                                  <div style={{ fontSize:12, color:"#aaa" }}>📷 Attach photo </div>
                                 )}
                                 <input ref={scavFileRef} type="file" accept="image/*" onChange={handleScavPhoto} style={{ display:"none" }} />
                               </div>
