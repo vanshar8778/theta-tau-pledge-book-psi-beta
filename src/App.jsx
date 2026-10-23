@@ -14,7 +14,6 @@ const PNM_NAMES = [
   "Ben Corson",
   "Bennett Pearson",
   "Eduardo Botello",
-  "Johannes Perret-Gentil",
   "Julia Lee",
   "Kate Leakey",
   "Kavya Ganguly",
@@ -30,6 +29,32 @@ const PNM_NAMES = [
   "Violet Pyles",
 ];
 
+// 5-digit PIN per PNM — swap any of these for your own before you share the link
+const PNM_PASSWORDS = {
+  "Adryel Rosales Juarez": "48213",
+  "Alvin An":               "75092",
+  "Alyssa Riddell":         "30587",
+  "Anusha Adhya":           "61940",
+  "Austin Rutherford":      "82715",
+  "Bailey Alexander":       "19364",
+  "Ben Corson":             "57028",
+  "Bennett Pearson":        "40691",
+  "Eduardo Botello":        "83257",
+  "Julia Lee":              "92184",
+  "Kate Leakey":            "36750",
+  "Kavya Ganguly":          "71493",
+  "Kaylin Kramer":          "58326",
+  "Kevin Ngyuen":           "20947",
+  "Lucas de Almedia":       "64829",
+  "Mahira Momin":           "13578",
+  "Pranaav Nair":           "90362",
+  "Rohan Cortes":           "47185",
+  "Ryan Gonzalez":          "25630",
+  "Sal Pellegrino":         "81946",
+  "Travis Schultz":         "39072",
+  "Violet Pyles":           "60184",
+};
+
 const ACTIVITY_TYPES = [
   { id: "interview_active", label: "Interview with Active", icon: "🤝", detail: "active" },
   { id: "sig_active",       label: "Sig with Active",       icon: "✍️", detail: "active" },
@@ -37,9 +62,9 @@ const ACTIVITY_TYPES = [
   { id: "event",            label: "Event Attendance",       icon: "📅", detail: "event"  },
 ];
 
-const POINTS        = { interview_active: 2, sig_active: 1.5, pnm_interview: 1, event: 1 };
-const STATUS_COLORS = { pending: "#C9A84C", approved: "#2E8B57", rejected: "#B83232" };
-const STATUS_BG     = { pending: "#FDF8EC", approved: "#EDF7F1", rejected: "#FBEAEA" };
+const DEFAULT_POINTS = { interview_active: 2, sig_active: 1.5, pnm_interview: 1, event: 1 };
+const STATUS_COLORS  = { pending: "#C9A84C", approved: "#2E8B57", rejected: "#B83232" };
+const STATUS_BG      = { pending: "#FDF8EC", approved: "#EDF7F1", rejected: "#FBEAEA" };
 
 async function compressImage(file) {
   return new Promise((resolve) => {
@@ -63,9 +88,10 @@ async function compressImage(file) {
 export default function PledgeBook() {
   const [view,        setView]        = useState("pnm");
   const [submissions, setSubmissions] = useState([]);
+  const [points,      setPoints]      = useState(DEFAULT_POINTS);
   const [loading,     setLoading]     = useState(true);
 
-  // Secret PM unlock: Johannes selected → 5 corner taps → logo tap
+  // Secret PM unlock: Kaylin selected → 5 corner taps → logo tap
   const [cornerCount, setCornerCount] = useState(0);
   const [cornerDone,  setCornerDone]  = useState(false);
   const cornerTimer                   = useRef(null);
@@ -74,6 +100,8 @@ export default function PledgeBook() {
   const [pnmScreen,    setPnmScreen]    = useState("name_entry");
   const [pnmName,      setPnmName]      = useState("");
   const [nameInput,    setNameInput]    = useState("");
+  const [pinInput,     setPinInput]     = useState("");
+  const [pinError,     setPinError]     = useState(false);
   const [form,         setForm]         = useState({ type: "", contactName: "", eventName: "", date: "", notes: "", photo: null });
   const [photoPreview, setPhotoPreview] = useState(null);
   const [formError,    setFormError]    = useState("");
@@ -92,6 +120,18 @@ export default function PledgeBook() {
   const [showQR,        setShowQR]        = useState(false);
   const [copied,        setCopied]        = useState(false);
 
+  // PM: point value editor
+  const [pointsDraft, setPointsDraft] = useState(DEFAULT_POINTS);
+  const [pointsSaved, setPointsSaved] = useState(false);
+
+  // PM: manual point award
+  const [awardPnm,     setAwardPnm]     = useState("");
+  const [awardType,    setAwardType]    = useState("");
+  const [awardPoints,  setAwardPoints]  = useState("");
+  const [awardNote,    setAwardNote]    = useState("");
+  const [awardError,   setAwardError]   = useState("");
+  const [awardSuccess, setAwardSuccess] = useState(false);
+
   useEffect(() => {
     const unsub = onSnapshot(
       collection(db, "submissions"),
@@ -104,9 +144,24 @@ export default function PledgeBook() {
     return () => unsub();
   }, []);
 
-  // Step 1: corner tap (only when Johannes is selected in dropdown)
+  useEffect(() => {
+    const unsub = onSnapshot(
+      doc(db, "settings", "points"),
+      (snap) => {
+        if (snap.exists()) {
+          const merged = { ...DEFAULT_POINTS, ...snap.data() };
+          setPoints(merged);
+          setPointsDraft(merged);
+        }
+      },
+      (err) => console.error("Points settings error:", err)
+    );
+    return () => unsub();
+  }, []);
+
+  // Step 1: corner tap (only when Kaylin is selected in dropdown)
   function handleCornerTap() {
-    if (nameInput !== "Johannes Perret-Gentil") return;
+    if (nameInput !== "Kaylin Kramer") return;
     if (cornerDone) return;
     if (cornerTimer.current) clearTimeout(cornerTimer.current);
     const next = cornerCount + 1;
@@ -130,8 +185,6 @@ export default function PledgeBook() {
     }
   }
 
-  const mySubs = (n) => submissions.filter(s => s.pnmName === n);
-
   async function handlePhoto(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -148,6 +201,17 @@ export default function PledgeBook() {
     if (t?.detail === "pnm"    && !form.contactName.trim()) return "Enter the other PNM's name.";
     if (t?.detail === "event"  && !form.eventName.trim())   return "Enter the event name.";
     return null;
+  }
+
+  function continuePnm() {
+    if (!nameInput || pinInput.length !== 5) return;
+    if (pinInput !== PNM_PASSWORDS[nameInput]) {
+      setPinError(true);
+      return;
+    }
+    setPinError(false);
+    setPnmName(nameInput);
+    setPnmScreen("home");
   }
 
   async function handleSubmit() {
@@ -202,39 +266,52 @@ export default function PledgeBook() {
     else setPwError(true);
   }
 
-  
-
-  // Per-PNM activity breakdown (approved only)
+  // Per-PNM activity breakdown (approved only). Bonus is stored as accumulated points, not a count.
   function pnmBreakdown() {
     const breakdown = {};
     PNM_NAMES.forEach(name => {
-      breakdown[name] = { sig_active: 0, interview_active: 0, pnm_interview: 0, event: 0 };
+      breakdown[name] = { sig_active: 0, interview_active: 0, pnm_interview: 0, event: 0, bonus: 0 };
     });
     submissions.filter(s => s.status === "approved").forEach(s => {
-      if (breakdown[s.pnmName] !== undefined) {
+      if (breakdown[s.pnmName] === undefined) return;
+      if (s.type === "bonus") {
+        breakdown[s.pnmName].bonus += (s.bonusPoints || 0);
+      } else {
         breakdown[s.pnmName][s.type] = (breakdown[s.pnmName][s.type] || 0) + 1;
       }
     });
     return breakdown;
   }
 
+  // All PNMs included (0 pts if none approved) — PM eyes only, never rendered for PNMs
+  function fullLeaderboard() {
+    const tally = {};
+    PNM_NAMES.forEach(name => { tally[name] = 0; });
+    submissions.filter(s => s.status === "approved").forEach(s => {
+      if (tally[s.pnmName] === undefined) return;
+      tally[s.pnmName] += s.type === "bonus" ? (s.bonusPoints || 0) : (points[s.type] || 0);
+    });
+    return Object.entries(tally).sort((a, b) => b[1] - a[1]);
+  }
+
   // Class averages across all PNMs (approved only)
   function calcAverages() {
     const bd = pnmBreakdown();
     const n  = PNM_NAMES.length;
-    const totals = { sig_active: 0, interview_active: 0, pnm_interview: 0, event: 0 };
+    const totals = { sig_active: 0, interview_active: 0, pnm_interview: 0, event: 0, bonus: 0 };
     PNM_NAMES.forEach(name => {
       totals.sig_active       += bd[name].sig_active;
       totals.interview_active += bd[name].interview_active;
       totals.pnm_interview    += bd[name].pnm_interview;
       totals.event            += bd[name].event;
+      totals.bonus            += bd[name].bonus;
     });
     return {
       sig_active:       (totals.sig_active       / n).toFixed(1),
       interview_active: (totals.interview_active / n).toFixed(1),
       pnm_interview:    (totals.pnm_interview    / n).toFixed(1),
       event:            (totals.event            / n).toFixed(1),
-      total:            ((totals.sig_active * POINTS.sig_active + totals.interview_active * POINTS.interview_active + totals.pnm_interview * POINTS.pnm_interview + totals.event * POINTS.event) / n).toFixed(1),
+      total:            ((totals.sig_active * points.sig_active + totals.interview_active * points.interview_active + totals.pnm_interview * points.pnm_interview + totals.event * points.event + totals.bonus) / n).toFixed(1),
     };
   }
 
@@ -270,14 +347,15 @@ export default function PledgeBook() {
   }
 
   function exportCSV() {
-    const headers = ["Name", "Type", "Contact/Event", "Date", "Notes", "Status", "Submitted At"];
+    const headers = ["Name", "Type", "Contact/Event", "Date", "Notes", "Status", "Points", "Submitted At"];
     const rows = submissions.map(s => [
       s.pnmName,
-      ACTIVITY_TYPES.find(a => a.id === s.type)?.label || s.type,
+      s.type === "bonus" ? "Bonus / PM Discretion" : (ACTIVITY_TYPES.find(a => a.id === s.type)?.label || s.type),
       s.contactName || s.eventName || "",
       s.date,
       s.notes || "",
       s.status,
+      s.status === "approved" ? (s.type === "bonus" ? (s.bonusPoints || 0) : (points[s.type] || 0)) : "",
       new Date(s.submittedAt).toLocaleDateString(),
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -288,6 +366,53 @@ export default function PledgeBook() {
     a.download = `theta-tau-submissions-${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function savePoints() {
+    try {
+      await setDoc(doc(db, "settings", "points"), {
+        interview_active: Number(pointsDraft.interview_active) || 0,
+        sig_active:       Number(pointsDraft.sig_active)       || 0,
+        pnm_interview:    Number(pointsDraft.pnm_interview)    || 0,
+        event:            Number(pointsDraft.event)            || 0,
+      });
+      setPointsSaved(true);
+      setTimeout(() => setPointsSaved(false), 2000);
+    } catch (e) {
+      console.error("Failed to save point values:", e);
+    }
+  }
+
+  async function submitAward() {
+    setAwardError("");
+    if (!awardPnm)  { setAwardError("Select a PNM."); return; }
+    if (!awardType) { setAwardError("Select an activity type."); return; }
+    if (awardType === "bonus" && (awardPoints === "" || isNaN(Number(awardPoints)))) {
+      setAwardError("Enter a point value for the bonus.");
+      return;
+    }
+    const id  = crypto.randomUUID();
+    const sub = {
+      pnmName: awardPnm,
+      type: awardType,
+      contactName: "", eventName: "",
+      date: new Date().toISOString().slice(0, 10),
+      notes: awardNote,
+      hasPhoto: false,
+      status: "approved",
+      submittedAt: new Date().toISOString(),
+      decidedAt: new Date().toISOString(),
+      manualAward: true,
+      ...(awardType === "bonus" ? { bonusPoints: Number(awardPoints) } : {}),
+    };
+    try {
+      await setDoc(doc(db, "submissions", id), sub);
+      setAwardPnm(""); setAwardType(""); setAwardPoints(""); setAwardNote("");
+      setAwardSuccess(true);
+      setTimeout(() => setAwardSuccess(false), 2000);
+    } catch (e) {
+      setAwardError("Failed to award — check your connection and try again.");
+    }
   }
 
   const pendingCount = submissions.filter(s => s.status === "pending").length;
@@ -350,10 +475,10 @@ export default function PledgeBook() {
             <div style={{ background:"white", borderRadius:8, padding:"44px 28px", textAlign:"center" }}>
               <div style={{ color:"#C9A84C", fontWeight:800, fontSize:34, marginBottom:8 }}>Θ Τ</div>
               <div style={{ fontWeight:800, fontSize:20, color:"#1A2035", marginBottom:4 }}>Welcome, PNM</div>
-              <div style={{ color:"#aaa", fontSize:13, marginBottom:28 }}>Select your name to see your progress</div>
+              <div style={{ color:"#aaa", fontSize:13, marginBottom:28 }}>Select your name and enter your PIN</div>
               <select
                 value={nameInput}
-                onChange={e => setNameInput(e.target.value)}
+                onChange={e => { setNameInput(e.target.value); setPinInput(""); setPinError(false); }}
                 style={{ width:"100%", padding:"10px 14px", border:"1px solid #E0DDD5", borderRadius:4, fontSize:15, fontFamily:"inherit", marginBottom:12, background:"white", color: nameInput ? "#1A2035" : "#aaa" }}
               >
                 <option value="">Select your name…</option>
@@ -361,10 +486,21 @@ export default function PledgeBook() {
                   <option key={name} value={name}>{name}</option>
                 ))}
               </select>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={5}
+                value={pinInput}
+                onChange={e => { setPinInput(e.target.value.replace(/\D/g, "").slice(0, 5)); setPinError(false); }}
+                onKeyDown={e => e.key === "Enter" && continuePnm()}
+                placeholder="5-digit PIN"
+                style={{ width:"100%", padding:"10px 14px", border:`1px solid ${pinError ? "#B83232" : "#E0DDD5"}`, borderRadius:4, fontSize:16, fontFamily:"inherit", marginBottom:8, letterSpacing:"5px", textAlign:"center" }}
+              />
+              {pinError && <div style={{ color:"#B83232", fontSize:12, marginBottom:8 }}>Wrong PIN — try again</div>}
               <button
-                disabled={!nameInput}
-                onClick={() => nameInput && (setPnmName(nameInput), setPnmScreen("home"))}
-                style={btn({ width:"100%", padding:12, fontSize:13, background: nameInput ? "#1A2035" : "#ddd", color: nameInput ? "#C9A84C" : "#aaa", cursor: nameInput ? "pointer" : "not-allowed" })}
+                disabled={!nameInput || pinInput.length !== 5}
+                onClick={continuePnm}
+                style={btn({ width:"100%", padding:12, fontSize:13, marginTop:4, background: (nameInput && pinInput.length===5) ? "#1A2035" : "#ddd", color: (nameInput && pinInput.length===5) ? "#C9A84C" : "#aaa", cursor: (nameInput && pinInput.length===5) ? "pointer" : "not-allowed" })}
               >CONTINUE</button>
             </div>
           )}
@@ -372,174 +508,18 @@ export default function PledgeBook() {
           {/* HOME SCREEN */}
           {pnmScreen === "home" && (
             <div>
-              <div style={{ marginBottom:18 }}>
+              <div style={{ marginBottom:22 }}>
                 <div style={{ fontWeight:800, fontSize:22, color:"#1A2035" }}>Hey, {pnmName.split(" ")[0]} 👋</div>
-                <div style={{ color:"#aaa", fontSize:13, marginTop:2 }}>Your pledge progress</div>
+                <div style={{ color:"#aaa", fontSize:13, marginTop:2 }}>Log your pledge activities below</div>
               </div>
 
-              {/* Points tile */}
-              {(() => {
-                const myApproved = mySubs(pnmName).filter(s => s.status === "approved");
-                const myPts = myApproved.reduce((sum, s) => sum + (POINTS[s.type] || 0), 0);
-                const rank = fullLeaderboard().findIndex(([n]) => n === pnmName) + 1;
-                return myPts > 0 ? (
-                  <div style={{ background:"#1A2035", borderRadius:8, padding:"16px 20px", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                    <div>
-                      <div style={{ color:"#C9A84C", fontWeight:800, fontSize:28, lineHeight:1 }}>{myPts} pts</div>
-                      <div style={{ color:"rgba(255,255,255,0.45)", fontSize:12, marginTop:4 }}>approved points</div>
-                    </div>
-                    <div style={{ textAlign:"right" }}>
-                      <div style={{ color:"white", fontWeight:800, fontSize:22, lineHeight:1 }}>#{rank}</div>
-                      <div style={{ color:"rgba(255,255,255,0.45)", fontSize:12, marginTop:4 }}>of {PNM_NAMES.length}</div>
-                    </div>
-                  </div>
-                ) : null;
-              })()}
-
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:18 }}>
-                {[
-                  { label:"Approved", key:"approved" },
-                  { label:"Pending",  key:"pending"  },
-                  { label:"Rejected", key:"rejected" },
-                ].map(({ label, key }) => (
-                  <div key={key} style={{ background:"white", borderRadius:6, padding:"14px 10px", textAlign:"center", borderBottom:`3px solid ${STATUS_COLORS[key]}` }}>
-                    <div style={{ fontSize:28, fontWeight:800, color:STATUS_COLORS[key] }}>{mySubs(pnmName).filter(s => s.status===key).length}</div>
-                    <div style={{ fontSize:11, color:"#aaa", fontWeight:600, marginTop:2 }}>{label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {mySubs(pnmName).length > 0 ? (
-                <div style={{ background:"white", borderRadius:8, padding:"14px 18px", marginBottom:14 }}>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-                    <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"0.5px" }}>RECENT</div>
-                    <button onClick={() => setPnmScreen("my_activities")} style={btn({ background:"none", color:"#C9A84C", fontSize:11, fontWeight:700, padding:0 })}>
-                      View All ({mySubs(pnmName).length}) →
-                    </button>
-                  </div>
-                  {[...mySubs(pnmName)].sort((a,b) => new Date(b.submittedAt) - new Date(a.submittedAt)).slice(0,5).map(sub => {
-                    const at = ACTIVITY_TYPES.find(a => a.id === sub.type);
-                    return (
-                      <div key={sub.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"1px solid #F5F4F0" }}>
-                        <span style={{ fontSize:18 }}>{at?.icon}</span>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:13, fontWeight:600, color:"#1A2035" }}>{at?.label}</div>
-                          <div style={{ fontSize:11, color:"#bbb" }}>{sub.date}</div>
-                        </div>
-                        <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:STATUS_BG[sub.status], color:STATUS_COLORS[sub.status], fontWeight:700 }}>
-                          {sub.status}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div style={{ background:"white", borderRadius:8, padding:"24px", textAlign:"center", color:"#ccc", fontSize:14, marginBottom:14 }}>
-                  No activities logged yet
-                </div>
-              )}
-
-              <button onClick={() => setPnmScreen("form")} style={btn({ width:"100%", padding:13, fontSize:14, background:"#1A2035", color:"#C9A84C", marginBottom:8 })}>
+              <button onClick={() => setPnmScreen("form")} style={btn({ width:"100%", padding:14, fontSize:14, background:"#1A2035", color:"#C9A84C", marginBottom:10 })}>
                 + LOG ACTIVITY
               </button>
-              <button onClick={() => setPnmScreen("leaderboard")} style={btn({ width:"100%", padding:11, fontSize:13, background:"white", color:"#1A2035", border:"1px solid #E0DDD5", marginBottom:2 })}>
-                🏆 View Leaderboard
-              </button>
-              <button onClick={() => { setPnmName(""); setNameInput(""); setPnmScreen("name_entry"); setCornerCount(0); setCornerDone(false); }}
+              <button onClick={() => { setPnmName(""); setNameInput(""); setPinInput(""); setPnmScreen("name_entry"); setCornerCount(0); setCornerDone(false); }}
                 style={btn({ width:"100%", padding:9, fontSize:12, background:"none", color:"#bbb", fontWeight:400, marginTop:4 })}>
                 Not {pnmName.split(" ")[0]}? Switch name
               </button>
-            </div>
-          )}
-
-          {/* LEADERBOARD SCREEN */}
-          {pnmScreen === "leaderboard" && (
-            <div>
-              <button onClick={() => setPnmScreen("home")} style={btn({ background:"none", color:"#888", fontSize:13, marginBottom:14, fontWeight:600, padding:0 })}>
-                ← Back
-              </button>
-              <div style={{ fontWeight:800, fontSize:20, color:"#1A2035", marginBottom:4 }}>🏆 Leaderboard</div>
-              <div style={{ color:"#aaa", fontSize:12, marginBottom:18 }}>Approved points only</div>
-              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                {fullLeaderboard().map(([name, pts], i) => {
-                  const isMe = name === pnmName;
-                  const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
-                  const firstName = name.split(" ")[0];
-                  const lastName  = name.split(" ").slice(-1)[0];
-                  return (
-                    <div key={name} style={{
-                      background: isMe ? "#1A2035" : "white",
-                      borderRadius:6,
-                      padding:"11px 16px",
-                      display:"flex",
-                      alignItems:"center",
-                      gap:12,
-                      boxShadow: isMe ? "0 2px 8px rgba(26,32,53,0.18)" : "none",
-                      border: isMe ? "2px solid #C9A84C" : "2px solid transparent",
-                    }}>
-                      <div style={{ width:24, textAlign:"center" }}>
-                        {medal
-                          ? <span style={{ fontSize:16 }}>{medal}</span>
-                          : <span style={{ fontSize:12, color: isMe ? "rgba(255,255,255,0.45)" : "#ccc", fontWeight:700 }}>{i+1}</span>
-                        }
-                      </div>
-                      <div style={{ flex:1, fontSize:14, fontWeight: isMe ? 800 : 500, color: isMe ? "white" : "#1A2035" }}>
-                        {firstName} {lastName}
-                        {isMe && <span style={{ fontSize:11, color:"#C9A84C", marginLeft:8 }}>you</span>}
-                      </div>
-                      <div style={{ fontWeight:800, fontSize:15, color: isMe ? "#C9A84C" : pts > 0 ? "#1A2035" : "#ddd" }}>
-                        {pts > 0 ? `${pts} pts` : "—"}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* MY ACTIVITIES */}
-          {pnmScreen === "my_activities" && (
-            <div>
-              <button onClick={() => setPnmScreen("home")} style={btn({ background:"none", color:"#888", fontSize:13, marginBottom:14, fontWeight:600, padding:0 })}>
-                ← Back
-              </button>
-              <div style={{ fontWeight:800, fontSize:20, color:"#1A2035", marginBottom:2 }}>My Activities</div>
-              <div style={{ color:"#aaa", fontSize:12, marginBottom:18 }}>{mySubs(pnmName).length} submission{mySubs(pnmName).length !== 1 ? "s" : ""}</div>
-              {mySubs(pnmName).length === 0 ? (
-                <div style={{ background:"white", borderRadius:8, padding:"24px", textAlign:"center", color:"#ccc", fontSize:14 }}>
-                  No activities logged yet
-                </div>
-              ) : (
-                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                  {[...mySubs(pnmName)].sort((a,b) => new Date(b.submittedAt) - new Date(a.submittedAt)).map(sub => {
-                    const at = ACTIVITY_TYPES.find(a => a.id === sub.type);
-                    return (
-                      <div key={sub.id} style={{ background:"white", borderRadius:6, padding:"12px 16px", borderLeft:`4px solid ${STATUS_COLORS[sub.status]}` }}>
-                        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10 }}>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontSize:14, fontWeight:700, color:"#1A2035" }}>{at?.icon} {at?.label}</div>
-                            {(sub.contactName || sub.eventName) && (
-                              <div style={{ fontSize:12, color:"#888", marginTop:2 }}>{sub.contactName || sub.eventName}</div>
-                            )}
-                            <div style={{ fontSize:11, color:"#bbb", marginTop:3 }}>{sub.date} · {new Date(sub.submittedAt).toLocaleDateString()}</div>
-                            {sub.notes && (
-                              <div style={{ fontSize:11, color:"#aaa", fontStyle:"italic", marginTop:5, borderLeft:"2px solid #E0DDD5", paddingLeft:6 }}>"{sub.notes}"</div>
-                            )}
-                          </div>
-                          <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4, flexShrink:0 }}>
-                            <span style={{ fontSize:10, padding:"3px 10px", borderRadius:10, background:STATUS_BG[sub.status], color:STATUS_COLORS[sub.status], fontWeight:700 }}>
-                              {sub.status}
-                            </span>
-                            {sub.status === "approved" && (
-                              <span style={{ fontSize:11, color:"#C9A84C", fontWeight:800 }}>+{POINTS[sub.type]} pts</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           )}
 
@@ -663,6 +643,59 @@ export default function PledgeBook() {
                 ))}
               </div>
 
+              {/* Point value editor */}
+              <div style={{ background:"white", borderRadius:8, padding:"14px 18px", marginBottom:14 }}>
+                <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"0.5px", marginBottom:12 }}>ACTIVITY POINT VALUES</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))", gap:10, marginBottom:12 }}>
+                  {ACTIVITY_TYPES.map(a => (
+                    <div key={a.id}>
+                      <div style={{ fontSize:11, color:"#888", fontWeight:600, marginBottom:4 }}>{a.icon} {a.label}</div>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={pointsDraft[a.id]}
+                        onChange={e => setPointsDraft(p => ({ ...p, [a.id]: e.target.value }))}
+                        style={{ width:"100%", padding:"7px 10px", border:"1px solid #E0DDD5", borderRadius:4, fontSize:14, fontFamily:"inherit", color:"#1A2035" }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <button onClick={savePoints} style={btn({ padding:"8px 20px", background:"#1A2035", color:"#C9A84C", fontSize:12 })}>
+                  {pointsSaved ? "Saved ✓" : "Save Point Values"}
+                </button>
+              </div>
+
+              {/* Manual point award */}
+              <div style={{ background:"white", borderRadius:8, padding:"14px 18px", marginBottom:14 }}>
+                <div style={{ fontSize:11, fontWeight:800, color:"#aaa", letterSpacing:"0.5px", marginBottom:4 }}>AWARD POINTS MANUALLY</div>
+                <div style={{ fontSize:11, color:"#bbb", marginBottom:12 }}>Log an already-approved activity for a PNM directly — e.g. helping clean up, going above and beyond, etc.</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                  <select value={awardPnm} onChange={e => setAwardPnm(e.target.value)}
+                    style={{ padding:"9px 12px", border:"1px solid #E0DDD5", borderRadius:4, fontSize:14, fontFamily:"inherit", background:"white", color: awardPnm ? "#1A2035" : "#aaa" }}>
+                    <option value="">Select PNM…</option>
+                    {PNM_NAMES.map(name => <option key={name} value={name}>{name}</option>)}
+                  </select>
+                  <select value={awardType} onChange={e => setAwardType(e.target.value)}
+                    style={{ padding:"9px 12px", border:"1px solid #E0DDD5", borderRadius:4, fontSize:14, fontFamily:"inherit", background:"white", color: awardType ? "#1A2035" : "#aaa" }}>
+                    <option value="">Select activity type…</option>
+                    {ACTIVITY_TYPES.map(a => <option key={a.id} value={a.id}>{a.icon} {a.label} (+{points[a.id]})</option>)}
+                    <option value="bonus">🌟 Bonus — custom point value</option>
+                  </select>
+                  {awardType === "bonus" && (
+                    <input type="number" step="0.5" value={awardPoints} onChange={e => setAwardPoints(e.target.value)}
+                      placeholder="Points to award"
+                      style={{ padding:"9px 12px", border:"1px solid #E0DDD5", borderRadius:4, fontSize:14, fontFamily:"inherit", color:"#1A2035" }} />
+                  )}
+                  <textarea value={awardNote} onChange={e => setAwardNote(e.target.value)} rows={2}
+                    placeholder="Reason / note (kept in your PM records)"
+                    style={{ padding:"9px 12px", border:"1px solid #E0DDD5", borderRadius:4, fontSize:14, resize:"vertical", fontFamily:"inherit", color:"#1A2035" }} />
+                  {awardError && <div style={{ color:"#B83232", fontSize:12, fontWeight:600 }}>{awardError}</div>}
+                  <button onClick={submitAward} style={btn({ padding:11, background:"#2E8B57", color:"white", fontSize:13 })}>
+                    {awardSuccess ? "Awarded ✓" : "Award Points"}
+                  </button>
+                </div>
+              </div>
+
               {/* Class stats row (mean + median) */}
               {(() => {
                 const avg = calcAverages();
@@ -703,6 +736,7 @@ export default function PledgeBook() {
                       <th style={{ textAlign:"center", padding:"6px 6px 8px",    color:"#555",    fontWeight:700, fontSize:11 }}>🤝 Interviews</th>
                       <th style={{ textAlign:"center", padding:"6px 6px 8px",    color:"#555",    fontWeight:700, fontSize:11 }}>💬 PNM 1-on-1s</th>
                       <th style={{ textAlign:"center", padding:"6px 6px 8px",    color:"#555",    fontWeight:700, fontSize:11 }}>📅 Events</th>
+                      <th style={{ textAlign:"center", padding:"6px 6px 8px",    color:"#555",    fontWeight:700, fontSize:11 }}>🌟 Bonus</th>
                       <th style={{ textAlign:"center", padding:"6px 0 8px 6px",  color:"#C9A84C", fontWeight:700, fontSize:11 }}>Pts</th>
                     </tr>
                   </thead>
@@ -725,6 +759,7 @@ export default function PledgeBook() {
                             <td style={{ textAlign:"center", padding:"7px 6px", color: r.interview_active > 0 ? "#4A90D9" : "#ccc", fontWeight:700 }}>{r.interview_active || "—"}</td>
                             <td style={{ textAlign:"center", padding:"7px 6px", color: r.pnm_interview    > 0 ? "#2E8B57" : "#ccc", fontWeight:700 }}>{r.pnm_interview    || "—"}</td>
                             <td style={{ textAlign:"center", padding:"7px 6px", color: r.event            > 0 ? "#D9822B" : "#ccc", fontWeight:700 }}>{r.event            || "—"}</td>
+                            <td style={{ textAlign:"center", padding:"7px 6px", color: r.bonus            > 0 ? "#C9A84C" : "#ccc", fontWeight:700 }}>{r.bonus > 0 ? `+${r.bonus}` : "—"}</td>
                             <td style={{ textAlign:"center", padding:"7px 0 7px 6px", color: pts > 0 ? "#C9A84C" : "#ccc", fontWeight:800 }}>{pts || "—"}</td>
                           </tr>
                         );
@@ -784,6 +819,7 @@ export default function PledgeBook() {
                   { id:"sig_active",       label:"✍️ Sigs" },
                   { id:"pnm_interview",    label:"💬 PNM 1-on-1" },
                   { id:"event",            label:"📅 Events" },
+                  { id:"bonus",            label:"🌟 Bonus" },
                 ].map(f => (
                   <button key={f.id} onClick={() => setTypeFilter(f.id)} style={btn({
                     padding:"5px 12px", borderRadius:20, fontSize:11,
@@ -823,7 +859,9 @@ export default function PledgeBook() {
               ) : (
                 <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                   {visibleSubs.map(sub => {
-                    const at       = ACTIVITY_TYPES.find(a => a.id === sub.type);
+                    const at = sub.type === "bonus"
+                      ? { icon: "🌟", label: "Bonus / PM Discretion" }
+                      : ACTIVITY_TYPES.find(a => a.id === sub.type);
                     const expanded = expandedId === sub.id;
                     const hasDetail = sub.notes || sub.hasPhoto;
                     return (
@@ -835,12 +873,14 @@ export default function PledgeBook() {
                               <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:STATUS_BG[sub.status], color:STATUS_COLORS[sub.status], fontWeight:700 }}>
                                 {sub.status}
                               </span>
+                              {sub.manualAward && <span title="Manually awarded by PM" style={{ fontSize:13 }}>🛠️</span>}
                               {sub.hasPhoto && <span title="Has photo" style={{ fontSize:13 }}>📷</span>}
                             </div>
                             <div style={{ fontSize:13, color:"#555", marginTop:4 }}>
                               {at?.icon} {at?.label}
                               {sub.contactName && <span style={{ color:"#aaa" }}> · {sub.contactName}</span>}
                               {sub.eventName   && <span style={{ color:"#aaa" }}> · {sub.eventName}</span>}
+                              {sub.type === "bonus" && <span style={{ color:"#C9A84C", fontWeight:700 }}> · +{sub.bonusPoints} pts</span>}
                             </div>
                             <div style={{ fontSize:11, color:"#ccc", marginTop:4 }}>
                               {sub.date} · submitted {new Date(sub.submittedAt).toLocaleString()}
