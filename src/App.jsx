@@ -202,15 +202,7 @@ export default function PledgeBook() {
     else setPwError(true);
   }
 
-  // Leaderboard — all PNMs included (0 pts if none approved)
-  function fullLeaderboard() {
-    const tally = {};
-    PNM_NAMES.forEach(name => { tally[name] = 0; });
-    submissions.filter(s => s.status === "approved").forEach(s => {
-      if (tally[s.pnmName] !== undefined) tally[s.pnmName] += (POINTS[s.type] || 0);
-    });
-    return Object.entries(tally).sort((a, b) => b[1] - a[1]);
-  }
+  
 
   // Per-PNM activity breakdown (approved only)
   function pnmBreakdown() {
