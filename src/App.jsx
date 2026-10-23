@@ -170,9 +170,50 @@ async function compressImage(file) {
         canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
         resolve(canvas.toDataURL("image/jpeg", 0.72));
       };
+      img.onerror = () => resolve(null);
       img.src = e.target.result;
     };
+    reader.onerror = () => resolve(null);
     reader.readAsDataURL(file);
+  });
+}
+
+// Videos are far too big for a Firestore doc (~1 MiB limit), so for video
+// proof we just grab one still frame as a thumbnail. Resolves null on failure.
+function videoStillFrame(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = "auto";
+    let done = false;
+    let timer;
+    const finish = (val) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+      resolve(val);
+    };
+    timer = setTimeout(() => finish(null), 6000);
+    v.onerror = () => finish(null);
+    v.onloadeddata = () => {
+      try { v.currentTime = Math.min(0.5, (v.duration || 1) / 2); }
+      catch (_) { finish(null); }
+    };
+    v.onseeked = () => {
+      try {
+        if (!v.videoWidth || !v.videoHeight) { finish(null); return; }
+        const scale  = Math.min(1, 800 / Math.max(v.videoWidth, v.videoHeight));
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(v.videoWidth  * scale);
+        canvas.height = Math.round(v.videoHeight * scale);
+        canvas.getContext("2d").drawImage(v, 0, 0, canvas.width, canvas.height);
+        finish(canvas.toDataURL("image/jpeg", 0.72));
+      } catch (_) { finish(null); }
+    };
+    v.src = url;
   });
 }
 
@@ -239,6 +280,8 @@ export default function PledgeBook() {
   const [scavNote,           setScavNote]           = useState("");
   const [scavSubmitError,    setScavSubmitError]    = useState("");
   const [scavSubmittingBusy, setScavSubmittingBusy] = useState(false);
+  const [scavVideoSent,      setScavVideoSent]      = useState(false);
+  const [scavMediaBusy,      setScavMediaBusy]      = useState(false);
   const scavFileRef = useRef();
 
   // Scavenger hunt — PM admin
@@ -612,16 +655,32 @@ export default function PledgeBook() {
 
   async function handleScavPhoto(e) {
     const file = e.target.files[0];
+    e.target.value = "";
     if (!file) return;
-    const compressed = await compressImage(file);
-    setScavPhotoPreview(compressed);
-    setScavPhotoFile(compressed);
+    setScavMediaBusy(true);
+    try {
+      if (file.type.startsWith("video/")) {
+        // Can't store video here — save a still frame and flag it for GroupMe.
+        const still = await videoStillFrame(file);
+        setScavVideoSent(true);
+        setScavPhotoPreview(still);
+        setScavPhotoFile(still);
+      } else {
+        const compressed = await compressImage(file);
+        setScavPhotoPreview(compressed);
+        setScavPhotoFile(compressed);
+      }
+    } catch (err) {
+      console.error("Failed to process media:", err);
+    }
+    setScavMediaBusy(false);
   }
 
   function openScavItem(key) {
     setScavOpenItem(key);
     setScavPhotoPreview(null);
     setScavPhotoFile(null);
+    setScavVideoSent(false);
     setScavNote("");
     setScavSubmitError("");
   }
@@ -634,6 +693,7 @@ export default function PledgeBook() {
       group: scavGroup,
       category, number, label,
       hasPhoto: !!scavPhotoFile,
+      videoInGroupMe: scavVideoSent,
       notes: scavNote,
       status: "pending",
       submittedAt: new Date().toISOString(),
@@ -642,12 +702,14 @@ export default function PledgeBook() {
       await setDoc(doc(db, "scavSubmissions", id), sub);
       if (scavPhotoFile) await setDoc(doc(db, "scavPhotos", id), { data: scavPhotoFile });
     } catch (e) {
+      console.error("Scav submit failed:", e);
       setScavSubmitError("Failed to submit — check your connection and try again.");
       setScavSubmittingBusy(false);
       return;
     }
     setScavPhotoPreview(null);
     setScavPhotoFile(null);
+    setScavVideoSent(false);
     setScavNote("");
     setScavSubmittingBusy(false);
     setScavOpenItem(null);
@@ -940,10 +1002,18 @@ export default function PledgeBook() {
                                 {scavPhotoPreview ? (
                                   <img src={scavPhotoPreview} alt="Preview" style={{ maxWidth:"100%", maxHeight:120, borderRadius:4, objectFit:"contain" }} />
                                 ) : (
-                                  <div style={{ fontSize:12, color:"#aaa" }}>📷 Attach photo </div>
+                                  <div style={{ fontSize:12, color:"#aaa" }}>
+                                    {scavMediaBusy ? "Processing…" : "📷 Attach photo or video"}
+                                  </div>
                                 )}
-                                <input ref={scavFileRef} type="file" accept="image/*" onChange={handleScavPhoto} style={{ display:"none" }} />
+                                <input ref={scavFileRef} type="file" accept="image/*,video/*" onChange={handleScavPhoto} style={{ display:"none" }} />
                               </div>
+                              <label style={{ display:"flex", alignItems:"flex-start", gap:8, fontSize:12, color:"#8a6d1f", background:"#FDF8EC", border:"1px solid #F0E6C8", borderRadius:6, padding:"8px 10px", marginBottom:8, cursor:"pointer" }}>
+                                <input type="checkbox" checked={scavVideoSent} onChange={e => setScavVideoSent(e.target.checked)} style={{ marginTop:2 }} />
+                                <span>
+                                  🎥 <strong>Video proof:</strong> videos can't upload here (we keep a still frame). Send the full video in your team GroupMe and check this box.
+                                </span>
+                              </label>
                               <textarea value={scavNote} onChange={e => setScavNote(e.target.value)} rows={2}
                                 placeholder="Note (optional)"
                                 style={{ width:"100%", padding:"8px 10px", border:"1px solid #E0DDD5", borderRadius:4, fontSize:13, resize:"vertical", fontFamily:"inherit", color:"#1A2035", marginBottom:8 }} />
@@ -1200,6 +1270,7 @@ export default function PledgeBook() {
                                         <span style={{ fontWeight:800, fontSize:14, color:"#1A2035" }}>{sub.group}</span>
                                         <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:STATUS_BG[sub.status], color:STATUS_COLORS[sub.status], fontWeight:700 }}>{sub.status}</span>
                                         {sub.hasPhoto && <span style={{ fontSize:12 }}>📷</span>}
+                                        {sub.videoInGroupMe && <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:"#FDF8EC", color:"#8a6d1f", fontWeight:700 }}>🎥 video in GroupMe</span>}
                                       </div>
                                       <div style={{ fontSize:12, color:"#555", marginTop:3 }}>
                                         {sub.category === "task" ? "🎯 Task" : "📍 Location"} #{sub.number} — {sub.label}
