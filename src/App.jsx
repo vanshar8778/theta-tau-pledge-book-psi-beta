@@ -255,6 +255,9 @@ export default function PledgeBook() {
   // PM: point value editor
   const [pointsDraft, setPointsDraft] = useState(DEFAULT_POINTS);
   const [pointsSaved, setPointsSaved] = useState(false);
+  // Past point-value periods: [{ until: ISO, values: {...} }], oldest first.
+  // A submission is worth whatever was in effect when it was submitted.
+  const [pointsHistory, setPointsHistory] = useState([]);
 
   // PM: manual point award
   const [awardPnm,     setAwardPnm]     = useState("");
@@ -316,6 +319,17 @@ export default function PledgeBook() {
         }
       },
       (err) => console.error("Points settings error:", err)
+    );
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      doc(db, "settings", "pointsHistory"),
+      (snap) => {
+        if (snap.exists()) setPointsHistory(snap.data().periods || []);
+      },
+      (err) => console.error("Points history error:", err)
     );
     return () => unsub();
   }, []);
@@ -488,6 +502,14 @@ export default function PledgeBook() {
     else setPwError(true);
   }
 
+  // Points a submission is worth, using the values in effect when it was submitted.
+  function ptsFor(s) {
+    if (s.type === "bonus") return s.bonusPoints || 0;
+    const t = new Date(s.submittedAt).getTime();
+    const period = pointsHistory.find(p => t < new Date(p.until).getTime());
+    return ((period ? period.values : points)[s.type]) || 0;
+  }
+
   // Per-PNM activity breakdown (approved only). Bonus is stored as accumulated points, not a count.
   function pnmBreakdown() {
     const breakdown = {};
@@ -511,7 +533,7 @@ export default function PledgeBook() {
     PNM_NAMES.forEach(name => { tally[name] = 0; });
     submissions.filter(s => s.status === "approved").forEach(s => {
       if (tally[s.pnmName] === undefined) return;
-      tally[s.pnmName] += s.type === "bonus" ? (s.bonusPoints || 0) : (points[s.type] || 0);
+      tally[s.pnmName] += ptsFor(s);
     });
     return Object.entries(tally).sort((a, b) => b[1] - a[1]);
   }
@@ -533,7 +555,7 @@ export default function PledgeBook() {
       interview_active: (totals.interview_active / n).toFixed(1),
       pnm_interview:    (totals.pnm_interview    / n).toFixed(1),
       event:            (totals.event            / n).toFixed(1),
-      total:            ((totals.sig_active * points.sig_active + totals.interview_active * points.interview_active + totals.pnm_interview * points.pnm_interview + totals.event * points.event + totals.bonus) / n).toFixed(1),
+      total:            (submissions.filter(s => s.status === "approved" && PNM_NAMES.includes(s.pnmName)).reduce((sum, s) => sum + ptsFor(s), 0) / n).toFixed(1),
     };
   }
 
@@ -577,7 +599,7 @@ export default function PledgeBook() {
       s.date,
       s.notes || "",
       s.status,
-      s.status === "approved" ? (s.type === "bonus" ? (s.bonusPoints || 0) : (points[s.type] || 0)) : "",
+      s.status === "approved" ? ptsFor(s) : "",
       new Date(s.submittedAt).toLocaleDateString(),
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -592,12 +614,20 @@ export default function PledgeBook() {
 
   async function savePoints() {
     try {
-      await setDoc(doc(db, "settings", "points"), {
+      const next = {
         interview_active: Number(pointsDraft.interview_active) || 0,
         sig_active:       Number(pointsDraft.sig_active)       || 0,
         pnm_interview:    Number(pointsDraft.pnm_interview)    || 0,
         event:            Number(pointsDraft.event)            || 0,
-      });
+      };
+      const changed = Object.keys(next).some(k => next[k] !== points[k]);
+      if (changed) {
+        // Freeze the old values for everything submitted up to now.
+        await setDoc(doc(db, "settings", "pointsHistory"), {
+          periods: [...pointsHistory, { until: new Date().toISOString(), values: { ...points } }],
+        });
+      }
+      await setDoc(doc(db, "settings", "points"), next);
       setPointsSaved(true);
       setTimeout(() => setPointsSaved(false), 2000);
     } catch (e) {
